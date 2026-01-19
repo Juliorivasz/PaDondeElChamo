@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.react-datepicker__current-month {
+  @apply capitalize;
+}
+
+.react-datepicker__month-text {
+  @apply capitalize;
+}
+
+.Toastify__toast--info {
+  @apply bg-azul !important;
+}
+
+.Toastify__progress-bar--info {
+  @apply bg-azul-darker !important;
+}
+
+.Toastify__toast--success {
+  @apply bg-verde !important;
+}
+
+.Toastify__progress-bar--success {
+  @apply bg-verde-darker !important;
+}
+
+.Toastify__toast--error {
+  @apply bg-rojo !important;
+}
+
+.Toastify__progress-bar--error {
+  @apply bg-rojo-darker !important;
+}
+
+.Toastify__toast--warning {
+  @apply bg-amarillo text-yellow-900 !important;
+}
+
+.Toastify__progress-bar--warning {
+  @apply bg-amarillo-darker !important;
+}
+
+.Toastify__toast--warning .Toastify__close-button {
+  @apply text-yellow-600 !important;
+}

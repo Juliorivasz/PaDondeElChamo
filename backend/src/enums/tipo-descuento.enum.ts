@@ -1,0 +1,6 @@
+export enum TipoDescuento {
+  MONTO = 'MONTO',
+  PORCENTAJE = 'PORCENTAJE',
+  AUTOMATICO = 'AUTOMATICO',
+  NINGUNO = 'NINGUNO',
+}

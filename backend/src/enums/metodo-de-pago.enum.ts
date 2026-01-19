@@ -1,0 +1,6 @@
+export enum MetodoDePago {
+  EFECTIVO = 'EFECTIVO',
+  TRANSFERENCIA = 'TRANSFERENCIA',
+  DEBITO = 'DEBITO',
+  CREDITO = 'CREDITO',
+}
