@@ -11,7 +11,7 @@ import { Plus } from "lucide-react"
 interface ModalEditarCategoriaProps {
   isOpen: boolean
   onClose: () => void
-  onConfirmar: (id: number, data: ModificarCategoriaDTO) => void
+  onConfirmar: (id: string, data: ModificarCategoriaDTO) => void
   categoria: Categoria | null
 }
 
@@ -50,7 +50,7 @@ export const ModalEditarCategoria: React.FC<ModalEditarCategoriaProps> = ({
   }
 
   // Lógica para filtrar la categoría actual y sus descendientes de las opciones de "Categoría Padre"
-  const filtrarJerarquia = (nodos: CategoriaArbol[], idAExcluir: number): CategoriaArbol[] => {
+  const filtrarJerarquia = (nodos: CategoriaArbol[], idAExcluir: string): CategoriaArbol[] => {
     return nodos
       .filter(nodo => nodo.idCategoria !== idAExcluir)
       .map(nodo => ({
@@ -106,8 +106,8 @@ export const ModalEditarCategoria: React.FC<ModalEditarCategoriaProps> = ({
               <label className="block text-sm font-semibold text-gray-700 ml-1">Categoría Padre</label>
               <SelectJerarquico
                 opciones={categoriasParaSelect}
-                selectedValue={formData.idCategoriaPadre}
-                onSelect={(id) => setFormData({ ...formData, idCategoriaPadre: id })}
+                selectedValue={formData.idCategoriaPadre ?? null}
+                onSelect={(id) => setFormData({ ...formData, idCategoriaPadre: id ?? null })}
                 idKey="idCategoria"
                 placeholder="Ninguna (Categoría Principal)"
               />

@@ -9,7 +9,7 @@ import { useEscapeKey } from "../../hooks/useEscapeKey"
 interface ModalEditarProveedorProps {
   isOpen: boolean
   onClose: () => void
-  onConfirm: (id: number, data: ProveedorDTO) => void
+  onConfirm: (id: string, data: ProveedorDTO) => void
   proveedor: Proveedor | null
 }
 
@@ -21,8 +21,8 @@ export const ModalEditarProveedor: React.FC<ModalEditarProveedorProps> = ({
 }) => {
   const [formData, setFormData] = useState<ProveedorDTO>({
     nombre: "",
-    telefono: null,
-    email: null,
+    telefono: undefined,
+    email: undefined,
   })
 
   useEffect(() => {
@@ -39,7 +39,7 @@ export const ModalEditarProveedor: React.FC<ModalEditarProveedorProps> = ({
     const { name, value } = e.target
     setFormData((prev) => ({
       ...prev,
-      [name]: value === "" ? null : value,
+      [name]: value === "" ? undefined : value,
     }))
   }
 

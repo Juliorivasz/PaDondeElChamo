@@ -2,39 +2,42 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { Package, Plus, Eye, Pencil, ChevronLeft, ChevronRight, AlertTriangle, BrushCleaning, Settings, BadgeCheck, Printer, ImageOff } from "lucide-react"
-import type { PaginaDeProductos, ProductoAbm, MarcaLista, ProveedorLista } from "../types/dto/Producto"
-import { obtenerProductos, cambiarEstadoProducto } from "../api/productoApi"
+import { Package, Plus, Eye, Pencil, ChevronLeft, ChevronRight, AlertTriangle, BrushCleaning, Settings, BadgeCheck } from "lucide-react"
+import type { ProductoAbm, MarcaLista, ProveedorLista } from "../types/dto/Producto"
+import { obtenerProductosPaginados, cambiarEstadoProducto, type DatosProductosPaginados } from "../api/productoApi"
 import { useCategoriaStore } from "../store/categoriaStore"
 import { SelectJerarquico } from "../components/SelectJerarquico"
 import { obtenerListaMarcas } from "../api/marcaApi"
-import { obtenerListaProveedores } from "../api/proveedorApi"
+import { obtenerProveedores } from "../api/proveedorApi"
 import { ModalNuevoProducto } from "../components/productos/ModalNuevoProducto"
 import { ModalEditarProducto } from "../components/productos/ModalEditarProducto"
 import { ModalDetallesProducto } from "../components/productos/ModalDetallesProducto"
 import { formatCurrency } from "../utils/numberFormatUtils"
 import { useAutenticacionStore } from "../store/autenticacionStore"
-
+import { PanelFiltrosColapsable } from "../components/PanelFiltrosColapsable"
 import { ModalGestionarMarcas } from "../components/marcas/ModalGestionarMarcas"
-import { ModalImagenPreview } from "../components/ModalImagenPreview"
+
 import { toast } from "react-toastify"
 
 export const PaginaProductos: React.FC = () => {
   const rol = useAutenticacionStore((state) => state.rol);
   const esAdmin = rol === 'ADMIN';
 
-  const [datosProductos, setDatosProductos] = useState<PaginaDeProductos | null>(null)
+  const [datosProductos, setDatosProductos] = useState<DatosProductosPaginados | null>(null)
   const [cargando, setCargando] = useState(true)
+  const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [paginaActual, setPaginaActual] = useState(0)
+  const [documentosPorPagina, setDocumentosPorPagina] = useState<any[]>([])
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   // Estados para los filtros
   const [filtros, setFiltros] = useState({
     nombre: "",
-    idCategoria: 0,
-    idMarca: 0,
-    idProveedor: 0,
+    idCategoria: "",
+    idMarca: "",
+    idProveedor: "",
     bajoStock: false,
-    page: 0,
     size: 25,
   })
 
@@ -51,8 +54,6 @@ export const PaginaProductos: React.FC = () => {
   const [modalDetallesAbierto, setModalDetallesAbierto] = useState(false)
 
   const [modalMarcasAbierto, setModalMarcasAbierto] = useState(false)
-  const [modalImagenAbierto, setModalImagenAbierto] = useState(false)
-  const [imagenSeleccionada, setImagenSeleccionada] = useState<{ url: string; nombre: string } | null>(null)
   const [productoSeleccionado, setProductoSeleccionado] = useState<ProductoAbm | null>(null)
 
   // Cargar productos cada vez que cambien los filtros
@@ -64,8 +65,9 @@ export const PaginaProductos: React.FC = () => {
     filtros.idMarca,
     filtros.idProveedor,
     filtros.bajoStock,
-    filtros.page,
-    filtros.size
+    paginaActual,
+    filtros.size,
+    refreshTrigger
   ]);
 
   useEffect(() => {
@@ -73,7 +75,7 @@ export const PaginaProductos: React.FC = () => {
       try {
         await cargarCategorias()
 
-        const [marcasData, proveedoresData] = await Promise.all([obtenerListaMarcas(), obtenerListaProveedores()])
+        const [marcasData, proveedoresData] = await Promise.all([obtenerListaMarcas(), obtenerProveedores()])
         setMarcas(marcasData)
         setProveedores(proveedoresData)
       } catch (error) {
@@ -84,15 +86,33 @@ export const PaginaProductos: React.FC = () => {
     cargarDatosSelect()
   }, []) // Removido cargarCategorias de las dependencias para evitar bucle infinito
 
-  const cargarProductos = async (): Promise<void> => {
+  const cargarProductos = async (resetPagina: boolean = false): Promise<void> => {
     setCargando(true)
     setError(null)
 
     try {
-      const datos = await obtenerProductos(filtros)
-      setDatosProductos(datos)
+      const lastDoc = resetPagina ? undefined : documentosPorPagina[paginaActual];
+      const datos = await obtenerProductosPaginados(
+        filtros.size,
+        lastDoc,
+        {
+          busqueda: filtros.nombre,
+          idCategoria: filtros.idCategoria || undefined,
+          idMarca: filtros.idMarca || undefined,
+          idProveedor: filtros.idProveedor || undefined,
+        }
+      );
+      setDatosProductos(datos);
+      
+      // Guardar el último documento para la siguiente página
+      if (datos.lastDoc && resetPagina) {
+        setDocumentosPorPagina([datos.lastDoc]);
+      } else if (datos.lastDoc) {
+        setDocumentosPorPagina(prev => [...prev.slice(0, paginaActual + 1), datos.lastDoc]);
+      }
     } catch (error) {
       console.error("No fue posible cargar los productos")
+      toast.error("Error al cargar productos");
     } finally {
       setCargando(false)
     }
@@ -102,43 +122,51 @@ export const PaginaProductos: React.FC = () => {
     setFiltros((prev) => ({
       ...prev,
       [campo]: valor,
-      page: 0,
     }))
+    setPaginaActual(0);
+    setDocumentosPorPagina([]);
   }
 
   const limpiarFiltros = (): void => {
     setFiltros({
       nombre: "",
-      idCategoria: 0,
-      idMarca: 0,
-      idProveedor: 0,
+      idCategoria: "",
+      idMarca: "",
+      idProveedor: "",
       bajoStock: false,
-      page: 0,
-      size: 10,
+      size: 25,
     })
+    setPaginaActual(0);
+    setDocumentosPorPagina([]);
   }
 
   const manejarCambioPagina = (nuevaPagina: number): void => {
-    setFiltros((prev) => ({
-      ...prev,
-      page: nuevaPagina,
-    }))
+    setPaginaActual(nuevaPagina);
   }
 
   const manejarCambioTamano = (nuevoTamano: number): void => {
     setFiltros((prev) => ({
       ...prev,
       size: nuevoTamano,
-      page: 0,
     }))
+    setPaginaActual(0);
+    setDocumentosPorPagina([]);
   }
 
-  const manejarCambiarEstado = async (id: number): Promise<void> => {
+  const manejarCambiarEstado = async (id: string): Promise<void> => {
     try {
-      await cambiarEstadoProducto(id)
-      cargarProductos()
+      setGuardando(true);
+      await cambiarEstadoProducto(id);
+      toast.success("Estado actualizado");
+      // Reset pagination and trigger refresh
+      setPaginaActual(0);
+      setDocumentosPorPagina([]);
+      setRefreshTrigger(prev => prev + 1);
     } catch (error) {
-      console.error("Error al cambiar estado:", error)
+      console.error("Error al cambiar estado:", error);
+      toast.error("Error al cambiar estado");
+    } finally {
+      setGuardando(false);
     }
   }
 
@@ -165,12 +193,15 @@ export const PaginaProductos: React.FC = () => {
 
   const confirmarAccion = (): void => {
     cerrarModales()
-    cargarProductos()
+    // Reset pagination and trigger refresh
+    setPaginaActual(0)
+    setDocumentosPorPagina([])
+    setRefreshTrigger(prev => prev + 1)
   }
 
   const recargarDatosSelect = async (): Promise<void> => {
     try {
-      const [marcasData, proveedoresData] = await Promise.all([obtenerListaMarcas(), obtenerListaProveedores()])
+      const [marcasData, proveedoresData] = await Promise.all([obtenerListaMarcas(), obtenerProveedores()])
       setMarcas(marcasData)
       setProveedores(proveedoresData)
     } catch (error) {
@@ -183,7 +214,7 @@ export const PaginaProductos: React.FC = () => {
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <p className="text-red-600 mb-4">{error}</p>
-          <button onClick={cargarProductos} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+          <button onClick={() => cargarProductos()} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
             Reintentar
           </button>
         </div>
@@ -216,7 +247,7 @@ export const PaginaProductos: React.FC = () => {
 
 
       {/* Panel de Filtros */}
-      <div className="bg-white rounded-lg shadow-sm border-gray-200 p-5 mb-8">
+      <PanelFiltrosColapsable titulo="Filtros de Búsqueda" defaultOpen={false}>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 ml-1">Buscar por nombre</label>
@@ -233,8 +264,8 @@ export const PaginaProductos: React.FC = () => {
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 ml-1">Categoría</label>
             <SelectJerarquico
               opciones={categoriasArbol}
-              selectedValue={filtros.idCategoria === 0 ? null : filtros.idCategoria}
-              onSelect={(id) => manejarCambioFiltro("idCategoria", id ?? 0)}
+              selectedValue={filtros.idCategoria === "" ? null : filtros.idCategoria}
+              onSelect={(id) => manejarCambioFiltro("idCategoria", id ?? "")}
               idKey="idCategoria"
               placeholder="Todas las categorías"
             />
@@ -244,10 +275,10 @@ export const PaginaProductos: React.FC = () => {
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 ml-1">Marca</label>
             <select
               value={filtros.idMarca}
-              onChange={(e) => manejarCambioFiltro("idMarca", Number.parseInt(e.target.value))}
+              onChange={(e) => manejarCambioFiltro("idMarca", e.target.value)}
               className="w-full h-[45px] px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-azul/20 focus:border-azul transition-all"
             >
-              <option value={0}>Todas</option>
+              <option value="">Todas</option>
               {marcas.map((marca) => (
                 <option key={marca.idMarca} value={marca.idMarca}>
                   {marca.nombre}
@@ -260,10 +291,10 @@ export const PaginaProductos: React.FC = () => {
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 ml-1">Proveedor</label>
             <select
               value={filtros.idProveedor}
-              onChange={(e) => manejarCambioFiltro("idProveedor", Number.parseInt(e.target.value))}
+              onChange={(e) => manejarCambioFiltro("idProveedor", e.target.value)}
               className="w-full h-[45px] px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-azul/20 focus:border-azul transition-all"
             >
-              <option value={0}>Todos</option>
+              <option value="">Todos</option>
               {proveedores.map((proveedor) => (
                 <option key={proveedor.idProveedor} value={proveedor.idProveedor}>
                   {proveedor.nombre}
@@ -295,7 +326,7 @@ export const PaginaProductos: React.FC = () => {
             <span className="lg:hidden font-semibold">Limpiar</span>
           </button>
         </div>
-      </div>
+      </PanelFiltrosColapsable>
 
       {/* Tabla de Productos */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -314,9 +345,6 @@ export const PaginaProductos: React.FC = () => {
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       ID
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Imagen
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Nombre
@@ -347,96 +375,77 @@ export const PaginaProductos: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {datosProductos?.content.map((producto) => (
-                    <tr key={producto.idProducto} className="hover:bg-opacity-80">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{producto.idProducto}</td>
+                  {datosProductos?.productos.map((producto) => {
+                    const prod = producto as ProductoAbm;
+                    return (
+                    <tr 
+                      key={prod.idProducto} 
+                      onClick={() => abrirModalDetalles(prod)}
+                      className="hover:bg-gray-50 cursor-pointer transition-colors"
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{prod.idProducto}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {producto.imagenUrl ? (
-                          <img
-                            src={producto.imagenUrl}
-                            alt={producto.nombre}
-                            className="w-12 h-12 object-cover rounded border border-gray-200 cursor-pointer hover:opacity-75 transition-opacity"
-                            onClick={() => {
-                              setImagenSeleccionada({ url: producto.imagenUrl!, nombre: producto.nombre })
-                              setModalImagenAbierto(true)
-                            }}
-                            title="Click para ver imagen completa"
-                          />
-                        ) : (
-                          <div className="w-12 h-12 bg-gray-100 rounded border border-gray-200 flex items-center justify-center">
-                            <ImageOff size={20} className="text-gray-400" />
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{producto.nombre}</div>
-                        <div className="text-sm text-gray-500">{producto.categoria}</div>
+                        <div className="text-sm font-medium text-gray-900">{prod.nombre}</div>
+                        <div className="text-sm text-gray-500">{prod.categoria}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div className="font-semibold">{formatCurrency(producto.precio)}</div>
+                        <div className="font-semibold">{formatCurrency(prod.precio)}</div>
                       </td>
 
                       {esAdmin && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           <span
-                            className={`inline-flex items-center px-3 py-1 text-sm font-bold rounded-full ${producto.stock <= producto.stockMinimo
+                            className={`inline-flex items-center px-3 py-1 text-sm font-bold rounded-full ${prod.stock <= (prod.stockMinimo || 0)
                               ? "bg-red-100 text-red-800"
                               : "bg-green-100 text-green-800"
                               }`}
                           >
-                            {producto.stock <= producto.stockMinimo ? (
+                            {prod.stock <= (prod.stockMinimo || 0) ? (
                               <AlertTriangle size={16} className="mr-1.5" />
                             ) : (
                               <BadgeCheck size={16} className="mr-1.5" />
                             )}
-                            {producto.stock}
+                            {prod.stock}
                           </span>
                         </td>
                       )}
-                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${!producto.marca
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${!prod.marca
                         ? 'text-gray-400 italic'
                         : 'text-gray-900'
                         }`}>
-                        {producto.marca || "Sin Marca"}
+                        {prod.marca || "Sin Marca"}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium" onClick={(e) => e.stopPropagation()}>
                         <div className="flex justify-center space-x-2">
                           <button
-                            onClick={() => abrirModalDetalles(producto)}
+                            onClick={() => abrirModalDetalles(prod)}
                             className="text-gray-800 hover:text-black transition-colors"
                             title="Ver detalles"
                           >
                             <Eye size={18} />
                           </button>
                           {esAdmin && (
-                            <button onClick={() => abrirModalEditar(producto)} className="text-gray-800 hover:text-black transition-colors" title="Editar">
+                            <button onClick={() => abrirModalEditar(prod)} className="text-gray-800 hover:text-black transition-colors" title="Editar">
                               <Pencil size={18} />
                             </button>
                           )}
 
                           <button
-                            onClick={() => toast.warning("Esta función no se encuentra disponible")}
-                            className="text-gray-800 hover:text-black transition-colors"
-                            title="Imprimir códigos de barras"
-                          >
-                            <Printer size={18} />
-                          </button>
-
-                          <button
-                            onClick={() => manejarCambiarEstado(producto.idProducto)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${producto.estado ? "bg-toggleOn focus:ring-toggleOn" : "bg-toggleOff focus:ring-toggleOff"
+                            onClick={() => manejarCambiarEstado(prod.idProducto)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${prod.estado ? "bg-toggleOn focus:ring-toggleOn" : "bg-toggleOff focus:ring-toggleOff"
                               }`}
-                            title={producto.estado ? "Desactivar" : "Activar"}
+                            title={prod.estado ? "Desactivar" : "Activar"}
                           >
                             <span
-                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${producto.estado ? "translate-x-6" : "translate-x-1"
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${prod.estado ? "translate-x-6" : "translate-x-1"
                                 }`}
                             />
                           </button>
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -446,15 +455,15 @@ export const PaginaProductos: React.FC = () => {
               <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
                 <div className="flex-1 flex justify-between sm:hidden">
                   <button
-                    onClick={() => manejarCambioPagina(datosProductos.number - 1)}
-                    disabled={datosProductos.number === 0}
+                    onClick={() => manejarCambioPagina(paginaActual - 1)}
+                    disabled={paginaActual === 0}
                     className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
                   >
                     Anterior
                   </button>
                   <button
-                    onClick={() => manejarCambioPagina(datosProductos.number + 1)}
-                    disabled={datosProductos.number >= datosProductos.totalPages - 1}
+                    onClick={() => manejarCambioPagina(paginaActual + 1)}
+                    disabled={!datosProductos?.hasMore}
                     className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
                   >
                     Siguiente
@@ -463,11 +472,11 @@ export const PaginaProductos: React.FC = () => {
                 <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                   <div className="flex flex-wrap items-center gap-4">
                     <p className="text-sm text-gray-700">
-                      Mostrando <span className="font-medium">{datosProductos.number * datosProductos.size + 1}</span> a{" "}
+                      Mostrando <span className="font-medium">{paginaActual * filtros.size + 1}</span> a{" "}
                       <span className="font-medium">
-                        {Math.min((datosProductos.number + 1) * datosProductos.size, datosProductos.totalElements)}
+                        {Math.min((paginaActual + 1) * filtros.size, datosProductos.totalCount)}
                       </span>{" "}
-                      de <span className="font-medium">{datosProductos.totalElements}</span> resultados
+                      de <span className="font-medium">{datosProductos.totalCount}</span> resultados
                     </p>
                     <select
                       value={filtros.size}
@@ -482,20 +491,20 @@ export const PaginaProductos: React.FC = () => {
                   <div>
                     <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
                       <button
-                        onClick={() => manejarCambioPagina(datosProductos.number - 1)}
-                        disabled={datosProductos.number === 0}
+                        onClick={() => manejarCambioPagina(paginaActual - 1)}
+                        disabled={paginaActual === 0}
                         className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                       >
                         <ChevronLeft size={20} />
                       </button>
 
                       <span className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
-                        Página {datosProductos.number + 1} de {datosProductos.totalPages}
+                        Página {paginaActual + 1}
                       </span>
 
                       <button
-                        onClick={() => manejarCambioPagina(datosProductos.number + 1)}
-                        disabled={datosProductos.number >= datosProductos.totalPages - 1}
+                        onClick={() => manejarCambioPagina(paginaActual + 1)}
+                        disabled={!datosProductos?.hasMore}
                         className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                       >
                         <ChevronRight size={20} />
@@ -523,13 +532,8 @@ export const PaginaProductos: React.FC = () => {
         isOpen={modalDetallesAbierto}
         producto={productoSeleccionado}
         onClose={cerrarModales}
-      />
-
-      <ModalImagenPreview
-        isOpen={modalImagenAbierto}
-        imageUrl={imagenSeleccionada?.url || ""}
-        imageName={imagenSeleccionada?.nombre || ""}
-        onClose={() => setModalImagenAbierto(false)}
+        onEdit={abrirModalEditar}
+        onToggleState={manejarCambiarEstado}
       />
 
       <ModalGestionarMarcas
@@ -537,6 +541,16 @@ export const PaginaProductos: React.FC = () => {
         onClose={() => setModalMarcasAbierto(false)}
         onDataChange={recargarDatosSelect}
       />
+
+      {/* Loading Overlay */}
+      {guardando && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999]">
+          <div className="bg-white rounded-2xl p-8 shadow-2xl flex flex-col items-center gap-4">
+            <div className="w-16 h-16 border-4 border-blue-100 border-t-azul rounded-full animate-spin"></div>
+            <p className="text-gray-700 font-semibold">Guardando cambios...</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

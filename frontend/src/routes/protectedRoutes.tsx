@@ -1,6 +1,7 @@
 import type { RouteObject } from "react-router-dom";
 import { Navigate } from "react-router-dom";
 import { PaginaProductos } from "../pages/PaginaProductos";
+import PaginaInsumos from "../pages/PaginaInsumos";
 import PaginaVentas from "../pages/PaginaVentas";
 import PaginaHistorial from "../pages/PaginaHistorial";
 import PaginaAccesoDenegado from "../pages/PaginaAccesoDenegado";
@@ -60,6 +61,10 @@ export const protectedRoutes: RouteObject[] = [
   {
     path: "productos",
     element: <PaginaProductos />,
+  },
+  {
+    path: "insumos",
+    element: <PaginaInsumos />,
   },
   {
     path: "acceso-denegado",

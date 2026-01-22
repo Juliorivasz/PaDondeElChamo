@@ -31,7 +31,10 @@ export const ModalDetallesCompra: React.FC<Props> = ({ isOpen, onClose, compra }
             <div className="p-2 bg-blue-50 rounded-lg">
               <ShoppingCart size={20} className="text-azul" />
             </div>
-            <h2 className="text-xl font-bold text-gray-900">Detalles de Compra #{compra.idCompra}</h2>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Detalles de Compra</h2>
+              <p className="text-xs text-gray-500 font-mono mt-0.5">ID: ...{String(compra.idCompra).slice(-8)}</p>
+            </div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
             <X size={24} />
@@ -103,6 +106,9 @@ export const ModalDetallesCompra: React.FC<Props> = ({ isOpen, onClose, compra }
                         <td className="px-6 py-4">
                           <div className="font-bold text-gray-900">
                             {typeof detalle.producto === "object" ? (detalle.producto as any).nombre : detalle.producto}
+                            <span className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded ${detalle.tipo === 'INSUMO' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                              {detalle.tipo}
+                            </span>
                           </div>
                           <div className="text-xs text-gray-400 font-mono">ID: {detalle.idProducto}</div>
                         </td>

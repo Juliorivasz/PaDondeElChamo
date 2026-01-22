@@ -16,7 +16,7 @@ interface Props {
 export const ModalGestionarMarcas: React.FC<Props> = ({ isOpen, onClose, onDataChange }) => {
   const [marcas, setMarcas] = useState<MarcaLista[]>([])
   const [cargando, setCargando] = useState(false)
-  const [editandoId, setEditandoId] = useState<number | null>(null)
+  const [editandoId, setEditandoId] = useState<string | null>(null)
   const [nombreEditando, setNombreEditando] = useState("")
   const [nuevaMarca, setNuevaMarca] = useState("")
   const [creandoMarca, setCreandoMarca] = useState(false)
@@ -65,7 +65,7 @@ export const ModalGestionarMarcas: React.FC<Props> = ({ isOpen, onClose, onDataC
     setNombreEditando("")
   }
 
-  const manejarGuardarEdicion = async (id: number): Promise<void> => {
+  const manejarGuardarEdicion = async (id: string): Promise<void> => {
     if (!nombreEditando.trim()) return
 
     try {

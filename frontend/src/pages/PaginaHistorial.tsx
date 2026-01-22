@@ -14,6 +14,7 @@ import { formatCurrency } from "../utils/numberFormatUtils"
 import { formatearFecha, formatearHora } from "../utils/fechaUtils"
 import { ModalDetallesVenta } from "../components/ventas/ModalDetallesVenta"
 import { useAutenticacionStore } from "../store/autenticacionStore"
+import { PanelFiltrosColapsable } from "../components/PanelFiltrosColapsable"
 
 const PaginaHistorialVentas: React.FC = () => {
   const navigate = useNavigate()
@@ -137,7 +138,8 @@ const PaginaHistorialVentas: React.FC = () => {
       {error && <div className="mt-2 mb-2 p-3 bg-red-100 border border-red-400 text-red-700 rounded">{error}</div>}
 
       {/* Panel de filtros */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-5 mb-8">        
+      {/* Panel de filtros */}
+      <PanelFiltrosColapsable titulo="Filtros de Búsqueda" defaultOpen={false}>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5 items-end">
           {/* Fecha desde */}
           <div className="space-y-1.5">
@@ -204,14 +206,14 @@ const PaginaHistorialVentas: React.FC = () => {
           {/* Botones de acción */}
           <button
             onClick={limpiarFiltros}
-            className="p-2.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition-colors flex items-center justify-center group w-full lg:w-fit shadow-sm"
+            className="p-2.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition-colors flex items-center justify-center group w-full lg:w-fit shadow-sm h-[45px] mt-auto"
             title="Limpiar filtros"
           >
             <BrushCleaning size={20} className="group-hover:rotate-12 transition-transform mr-2 lg:mr-0" />
             <span className="lg:hidden font-semibold">Limpiar</span>
           </button>
         </div>
-      </div>
+      </PanelFiltrosColapsable>
 
       {/* Tabla de ventas */}
       <div className="bg-white rounded-lg shadow-md overflow-hidden">

@@ -4,15 +4,15 @@ import type React from "react"
 import { useState, useEffect, useRef, useMemo } from "react"
 import { X, Plus, Trash2 } from "lucide-react"
 import type { CompraDTO, Compra } from "../../types/dto/Compra"
-import type { ProductoLista } from "../../types/dto/Producto"
 import { crearCompra, modificarCompra } from "../../api/compraApi"
-import { obtenerListaProveedores } from "../../api/proveedorApi"
-import { obtenerListaProductosCompra } from "../../api/productoApi"
+import { obtenerProveedores } from "../../api/proveedorApi"
+import { obtenerInsumos } from "../../api/insumoApi"
 import { formatCurrency } from "../../utils/numberFormatUtils"
 import { useEscapeKey } from "../../hooks/useEscapeKey"
 import { toast } from "react-toastify"
 import { useAutocompleteNav } from "../../hooks/useAutocompleteNav"
 import { InputPorcentaje } from "../InputPorcentaje"
+import { useUsuarioStore } from "../../store/usuarioStore"
 
 interface Props {
   isOpen: boolean
@@ -22,27 +22,37 @@ interface Props {
 }
 
 interface DetalleItem {
-  idProducto: number
-  nombreProducto: string
+  idItem: string
+  nombre: string
+  tipo: 'PRODUCTO' | 'INSUMO'
   cantidad: number
   costoUnitarioOriginal: number
   descuentoIndividual: number
+  unidadMedida?: string
+}
+
+interface ItemSeleccionable {
+  id: string
+  nombre: string
+  costo: number
+  tipo: 'PRODUCTO' | 'INSUMO'
+  unidadMedida?: string
 }
 
 export const ModalGestionarCompra: React.FC<Props> = ({ isOpen, onClose, onSuccess, compraParaEditar }) => {
   const esEdicion = !!compraParaEditar
 
   const [cargando, setCargando] = useState(false)
-  const [proveedores, setProveedores] = useState<{ idProveedor: number; nombre: string }[]>([])
-  const [productos, setProductos] = useState<ProductoLista[]>([])
-  const [proveedorSeleccionado, setProveedorSeleccionado] = useState<number>(0)
+  const [proveedores, setProveedores] = useState<{ idProveedor: string; nombre: string }[]>([])
+  const [items, setItems] = useState<ItemSeleccionable[]>([])
+  const [proveedorSeleccionado, setProveedorSeleccionado] = useState<string>("")
 
   const [tipoDescuento, setTipoDescuento] = useState<"GLOBAL" | "INDIVIDUAL">("GLOBAL")
   const [descuentoGlobal, setDescuentoGlobal] = useState<number>(0)
 
   const [detalles, setDetalles] = useState<DetalleItem[]>([])
-  const [busquedaProducto, setBusquedaProducto] = useState<string>("")
-  const [productoSeleccionado, setProductoSeleccionado] = useState<ProductoLista | null>(null)
+  const [busqueda, setBusqueda] = useState<string>("")
+  const [itemSeleccionado, setItemSeleccionado] = useState<ItemSeleccionable | null>(null)
   const [mostrarSugerencias, setMostrarSugerencias] = useState<boolean>(false)
   const [cantidadInput, setCantidadInput] = useState<number>(1)
   const [descuentoIndividualInput, setDescuentoIndividualInput] = useState<number | null>(null)
@@ -50,19 +60,19 @@ export const ModalGestionarCompra: React.FC<Props> = ({ isOpen, onClose, onSucce
   const dropdownRef = useRef<HTMLDivElement>(null)
   const inputBusquedaRef = useRef<HTMLInputElement>(null)
 
-  const productosFiltrados = useMemo(() => {
-    if (!busquedaProducto) return []
-    return productos.filter((p) => p.nombre.toLowerCase().includes(busquedaProducto.toLowerCase()))
-  }, [productos, busquedaProducto])
+  const itemsFiltrados = useMemo(() => {
+    if (!busqueda) return []
+    return items.filter((p) => p.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+  }, [items, busqueda])
 
-  const seleccionarProducto = (producto: ProductoLista) => {
-    setProductoSeleccionado(producto)
-    setBusquedaProducto(producto.nombre)
+  const seleccionarItem = (item: ItemSeleccionable) => {
+    setItemSeleccionado(item)
+    setBusqueda(item.nombre)
     setMostrarSugerencias(false)
   }
 
-  const { activeIndex, setActiveIndex, onKeyDown } = useAutocompleteNav(productosFiltrados.length, (index) =>
-    seleccionarProducto(productosFiltrados[index]),
+  const { activeIndex, setActiveIndex, onKeyDown } = useAutocompleteNav(itemsFiltrados.length, (index) =>
+    seleccionarItem(itemsFiltrados[index]),
   )
 
   useEffect(() => {
@@ -78,7 +88,7 @@ export const ModalGestionarCompra: React.FC<Props> = ({ isOpen, onClose, onSucce
     if (isOpen) {
       const init = async () => {
         await cargarProveedores()
-        await cargarProductosProveedor()
+        await cargarItems()
         
         if (esEdicion && compraParaEditar) {
           cargarDatosParaEditar()
@@ -99,8 +109,9 @@ export const ModalGestionarCompra: React.FC<Props> = ({ isOpen, onClose, onSucce
     }
 
     const detallesFormateados: DetalleItem[] = (compraParaEditar.detalles || []).map((detalle) => ({
-      idProducto: detalle.idProducto,
-      nombreProducto: typeof detalle.producto === "object" ? (detalle.producto as any).nombre : detalle.producto,
+      idItem: detalle.idProducto,
+      nombre: typeof detalle.producto === "object" ? (detalle.producto as any).nombre : detalle.producto,
+      tipo: detalle.tipo || 'PRODUCTO',
       cantidad: detalle.cantidad,
       costoUnitarioOriginal: detalle.costoUnitario,
       descuentoIndividual: 0,
@@ -111,27 +122,37 @@ export const ModalGestionarCompra: React.FC<Props> = ({ isOpen, onClose, onSucce
 
   const cargarProveedores = async () => {
     try {
-      const data = await obtenerListaProveedores()
+      const data = await obtenerProveedores()
       setProveedores(data)
     } catch (error) {
       console.error("Error al cargar proveedores")
     }
   }
 
-  const cargarProductosProveedor = async () => {
+  const cargarItems = async () => {
     try {
-      const data = await obtenerListaProductosCompra()
-      setProductos(data)
+      // Solo cargar insumos para compras
+      const insumosData = await obtenerInsumos()
+
+      const insumos: ItemSeleccionable[] = insumosData.map(i => ({
+        id: i.idInsumo,
+        nombre: i.nombre,
+        costo: i.costo,
+        tipo: 'INSUMO',
+        unidadMedida: i.unidadMedida
+      }))
+
+      setItems(insumos)
     } catch (error) {
-      console.error("Error al cargar los productos")
+      console.error("Error al cargar items")
     }
   }
 
   const resetearFormulario = () => {
-    setProveedorSeleccionado(0)
+    setProveedorSeleccionado("")
     setDetalles([])
-    setBusquedaProducto("")
-    setProductoSeleccionado(null)
+    setBusqueda("")
+    setItemSeleccionado(null)
     setMostrarSugerencias(false)
     setCantidadInput(1)
     setTipoDescuento("GLOBAL")
@@ -146,26 +167,28 @@ export const ModalGestionarCompra: React.FC<Props> = ({ isOpen, onClose, onSucce
     return Math.round(costoOriginal * (1 - descuento / 100))
   }
 
-  const añadirProducto = () => {
-    if (!productoSeleccionado || cantidadInput <= 0) return
+  const añadirItem = () => {
+    if (!itemSeleccionado || cantidadInput <= 0) return
 
-    const existeProducto = detalles.find((d) => d.idProducto === productoSeleccionado.idProducto)
-    if (existeProducto) {
-      toast.warning(`El producto ${productoSeleccionado.nombre} ya se encuentra cargado en la compra.`)
+    const existe = detalles.find((d) => d.idItem === itemSeleccionado.id)
+    if (existe) {
+      toast.warning(`El item ${itemSeleccionado.nombre} ya se encuentra cargado.`)
       return
-    } else {
-      const nuevoDetalle: DetalleItem = {
-        idProducto: productoSeleccionado.idProducto,
-        nombreProducto: productoSeleccionado.nombre,
-        cantidad: cantidadInput,
-        costoUnitarioOriginal: productoSeleccionado.costo,
-        descuentoIndividual: descuentoIndividualInput || 0,
-      }
-      setDetalles((prev) => [...prev, nuevoDetalle])
     }
 
-    setBusquedaProducto("")
-    setProductoSeleccionado(null)
+    const nuevoDetalle: DetalleItem = {
+      idItem: itemSeleccionado.id,
+      nombre: itemSeleccionado.nombre,
+      tipo: itemSeleccionado.tipo,
+      cantidad: cantidadInput,
+      costoUnitarioOriginal: itemSeleccionado.costo,
+      descuentoIndividual: descuentoIndividualInput || 0,
+      unidadMedida: itemSeleccionado.unidadMedida,
+    }
+    setDetalles((prev) => [...prev, nuevoDetalle])
+
+    setBusqueda("")
+    setItemSeleccionado(null)
     setMostrarSugerencias(false)
     setCantidadInput(1)
     setDescuentoIndividualInput(null)
@@ -175,22 +198,22 @@ export const ModalGestionarCompra: React.FC<Props> = ({ isOpen, onClose, onSucce
     }
   }
 
-  const eliminarProducto = (idProducto: number) => {
-    setDetalles((prev) => prev.filter((d) => d.idProducto !== idProducto))
+  const eliminarItem = (id: string) => {
+    setDetalles((prev) => prev.filter((d) => d.idItem !== id))
   }
 
-  const modificarCantidadDetalle = (idProducto: number, nuevaCantidad: number) => {
+  const modificarCantidadDetalle = (id: string, nuevaCantidad: number) => {
     if (nuevaCantidad < 1) return
 
     setDetalles((prev) =>
-      prev.map((detalle) => (detalle.idProducto === idProducto ? { ...detalle, cantidad: nuevaCantidad } : detalle)),
+      prev.map((detalle) => (detalle.idItem === id ? { ...detalle, cantidad: nuevaCantidad } : detalle)),
     )
   }
 
-  const modificarDescuentoIndividual = (idProducto: number, nuevoDescuento: number) => {
+  const modificarDescuentoIndividual = (id: string, nuevoDescuento: number) => {
     setDetalles((prev) =>
       prev.map((detalle) =>
-        detalle.idProducto === idProducto ? { ...detalle, descuentoIndividual: nuevoDescuento } : detalle,
+        detalle.idItem === id ? { ...detalle, descuentoIndividual: nuevoDescuento } : detalle,
       ),
     )
   }
@@ -220,17 +243,22 @@ export const ModalGestionarCompra: React.FC<Props> = ({ isOpen, onClose, onSucce
   }
 
   const manejarGuardar = async () => {
-    if (proveedorSeleccionado === 0 || detalles.length === 0) {
+    if (proveedorSeleccionado === "" || detalles.length === 0) {
       toast.info("Debe seleccionar un proveedor y añadir al menos un producto")
       return
     }
 
     setCargando(true)
     try {
+      const usuario = useUsuarioStore.getState().usuario;
+      
       const compraData: CompraDTO = {
         idProveedor: proveedorSeleccionado,
+        nombreUsuario: usuario?.nombre || 'Sistema',
         detalles: detalles.map((d) => ({
-          idProducto: d.idProducto,
+          tipo: d.tipo,
+          idItem: d.idItem,
+          nombre: d.nombre,
           cantidad: d.cantidad,
           costoUnitario: calcularCostoUnitarioFinal(
             d.costoUnitarioOriginal,
@@ -240,7 +268,7 @@ export const ModalGestionarCompra: React.FC<Props> = ({ isOpen, onClose, onSucce
       }
 
       if (esEdicion && compraParaEditar) {
-        await modificarCompra(compraParaEditar.idCompra, compraData)
+        await modificarCompra(String(compraParaEditar.idCompra), compraData)
         toast.success("¡Compra actualizada con éxito!")
       } else {
         await crearCompra(compraData)
@@ -278,10 +306,10 @@ export const ModalGestionarCompra: React.FC<Props> = ({ isOpen, onClose, onSucce
                 <label className="block text-sm font-semibold text-gray-700 ml-1">Proveedor *</label>
                 <select
                   value={proveedorSeleccionado}
-                  onChange={(e) => setProveedorSeleccionado(Number(e.target.value))}
+                  onChange={(e) => setProveedorSeleccionado(e.target.value)}
                   className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-azul/20 focus:border-azul transition-all appearance-none"
                 >
-                  <option value={0}>Seleccionar proveedor</option>
+                  <option value="">Seleccionar proveedor</option>
                   {proveedores.map((proveedor) => (
                     <option key={proveedor.idProveedor} value={proveedor.idProveedor}>
                       {proveedor.nombre}
@@ -336,36 +364,41 @@ export const ModalGestionarCompra: React.FC<Props> = ({ isOpen, onClose, onSucce
                 <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider ml-1">Añadir Productos</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
                   <div className="sm:col-span-6 relative">
-                    <label className="block text-xs font-semibold text-gray-500 mb-1.5 ml-1">Producto</label>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1.5 ml-1">Producto / Insumo</label>
                     <input
                       ref={inputBusquedaRef}
                       type="text"
-                      placeholder="Buscar producto..."
-                      value={busquedaProducto}
+                      placeholder="Buscar..."
+                      value={busqueda}
                       onChange={(e) => {
-                        setBusquedaProducto(e.target.value)
+                        setBusqueda(e.target.value)
                         setMostrarSugerencias(true)
-                        setProductoSeleccionado(null)
+                        setItemSeleccionado(null)
                       }}
                       onFocus={() => setMostrarSugerencias(true)}
                       onKeyDown={onKeyDown}
                       className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-azul/20 focus:border-azul transition-all"
                     />
 
-                    {mostrarSugerencias && busquedaProducto && productosFiltrados.length > 0 && (
+                    {mostrarSugerencias && busqueda && itemsFiltrados.length > 0 && (
                       <div
                         ref={dropdownRef}
                         className="absolute z-10 w-full mt-2 bg-white border border-gray-100 rounded-lg shadow-xl max-h-60 overflow-y-auto py-2"
                       >
-                        {productosFiltrados.slice(0, 10).map((producto, index) => (
+                        {itemsFiltrados.slice(0, 10).map((item, index) => (
                           <div
-                            key={producto.idProducto}
-                            onClick={() => seleccionarProducto(producto)}
+                            key={item.id}
+                            onClick={() => seleccionarItem(item)}
                             onMouseEnter={() => setActiveIndex(index)}
                             className={`px-4 py-3 hover:bg-azul/5 cursor-pointer flex justify-between items-center transition-colors ${index === activeIndex ? "bg-azul/5" : ""}`}
                           >
-                            <span className="font-medium text-gray-900">{producto.nombre}</span>
-                            <span className="font-bold text-verde">{formatCurrency(producto.costo)}</span>
+                            <div>
+                              <div className="font-medium text-gray-900">{item.nombre}</div>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${item.tipo === 'INSUMO' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                                {item.tipo}
+                              </span>
+                            </div>
+                            <span className="font-bold text-verde">{formatCurrency(item.costo)}</span>
                           </div>
                         ))}
                       </div>
@@ -397,8 +430,8 @@ export const ModalGestionarCompra: React.FC<Props> = ({ isOpen, onClose, onSucce
 
                   <div className={`${tipoDescuento === "INDIVIDUAL" ? "sm:col-span-2" : "sm:col-span-4"}`}>
                     <button
-                      onClick={añadirProducto}
-                      disabled={!productoSeleccionado || cantidadInput <= 0}
+                      onClick={añadirItem}
+                      disabled={!itemSeleccionado || cantidadInput <= 0}
                       className="w-full flex items-center justify-center p-2.5 bg-verde text-white rounded-lg hover:bg-verde-dark disabled:opacity-50 transition-all font-bold group active:scale-95 shadow-md"
                     >
                       <Plus size={20} className="group-hover:rotate-90 transition-transform" />
@@ -406,18 +439,23 @@ export const ModalGestionarCompra: React.FC<Props> = ({ isOpen, onClose, onSucce
                   </div>
                 </div>
 
-                {productoSeleccionado && (
+                {itemSeleccionado && (
                   <div className="p-4 bg-white rounded-lg border border-azul/10 animate-in zoom-in-95">
                     <div className="flex justify-between items-start mb-2">
-                      <h4 className="font-bold text-gray-900">{productoSeleccionado.nombre}</h4>
-                      <span className="text-azul font-bold">{formatCurrency(productoSeleccionado.costo)}</span>
+                      <div>
+                        <h4 className="font-bold text-gray-900">{itemSeleccionado.nombre}</h4>
+                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${itemSeleccionado.tipo === 'INSUMO' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                          {itemSeleccionado.tipo}
+                        </span>
+                      </div>
+                      <span className="text-azul font-bold">{formatCurrency(itemSeleccionado.costo)}</span>
                     </div>
                     <div className="flex justify-between items-center text-xs">
                       <span className="text-gray-500">Subtotal con descuento:</span>
                       <span className="text-verde font-bold text-sm">
                         {formatCurrency(
                           calcularCostoUnitarioFinal(
-                            productoSeleccionado.costo,
+                            itemSeleccionado.costo,
                             tipoDescuento === "GLOBAL" ? descuentoGlobal : descuentoIndividualInput || 0,
                           ) * cantidadInput,
                         )}
@@ -453,7 +491,15 @@ export const ModalGestionarCompra: React.FC<Props> = ({ isOpen, onClose, onSucce
                       return (
                         <tr key={index} className="hover:bg-gray-50/50 transition-colors">
                           <td className="px-6 py-4 font-medium text-gray-900">
-                            {typeof detalle.nombreProducto === "object" ? (detalle.nombreProducto as any).nombre : detalle.nombreProducto}
+                            {detalle.nombre}
+                            {detalle.unidadMedida && (
+                              <span className="ml-2 text-xs text-gray-500">
+                                ({detalle.unidadMedida})
+                              </span>
+                            )}
+                            <span className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded ${detalle.tipo === 'INSUMO' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                              {detalle.tipo}
+                            </span>
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex justify-center">
@@ -462,7 +508,7 @@ export const ModalGestionarCompra: React.FC<Props> = ({ isOpen, onClose, onSucce
                                 min="1"
                                 value={detalle.cantidad}
                                 onChange={(e) =>
-                                  modificarCantidadDetalle(detalle.idProducto, Number.parseInt(e.target.value) || 1)
+                                  modificarCantidadDetalle(detalle.idItem, Number.parseInt(e.target.value) || 1)
                                 }
                                 className="w-16 px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-center font-bold focus:ring-2 focus:ring-azul/20"
                               />
@@ -473,7 +519,7 @@ export const ModalGestionarCompra: React.FC<Props> = ({ isOpen, onClose, onSucce
                               <InputPorcentaje
                                 value={detalle.descuentoIndividual}
                                 onValueChange={(nuevoValor) =>
-                                  modificarDescuentoIndividual(detalle.idProducto, nuevoValor || 0)
+                                  modificarDescuentoIndividual(detalle.idItem, nuevoValor || 0)
                                 }
                                 className="w-16 px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-center font-bold focus:ring-2 focus:ring-azul/20 inline-block"
                                 placeholder="0%"
@@ -486,7 +532,7 @@ export const ModalGestionarCompra: React.FC<Props> = ({ isOpen, onClose, onSucce
                           </td>
                           <td className="px-6 py-4 text-right">
                             <button
-                              onClick={() => eliminarProducto(detalle.idProducto)}
+                              onClick={() => eliminarItem(detalle.idItem)}
                               className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                             >
                               <Trash2 size={16} />
@@ -524,7 +570,7 @@ export const ModalGestionarCompra: React.FC<Props> = ({ isOpen, onClose, onSucce
             </button>
             <button
               onClick={manejarGuardar}
-              disabled={cargando || proveedorSeleccionado === 0 || detalles.length === 0}
+              disabled={cargando || proveedorSeleccionado === "" || detalles.length === 0}
               className="flex-1 sm:flex-none px-10 py-3 bg-azul text-white font-bold rounded-lg shadow-md hover:bg-azul-dark disabled:opacity-50 transition-all active:scale-95"
             >
               {cargando ? "Guardando..." : esEdicion ? "Actualizar" : "Confirmar"}

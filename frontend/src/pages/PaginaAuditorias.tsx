@@ -195,7 +195,7 @@ const PaginaAuditorias: React.FC = () => {
           setModalRealizarOpen(false)
           cargarDatos()
         }}
-        idUsuario={usuario?.idUsuario || 1}
+        idUsuario={usuario?.idUsuario ? parseInt(usuario.idUsuario) : 1}
       />
 
       <ModalDetallesAuditoria

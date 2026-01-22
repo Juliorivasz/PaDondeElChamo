@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useParams } from "react-router-dom"
-import { Search, Plus, Trash2, ListPlus, RefreshCw, X, ShoppingBasket, Percent } from "lucide-react"
+import { Search, Plus, Trash2, ListPlus, RefreshCw, X, ShoppingBasket, Percent, ChevronRight, Minus } from "lucide-react"
 import type { ItemCatalogo, ItemVenta, VentaDTO } from "../types/dto/Venta"
 import { motion, AnimatePresence } from "framer-motion"
 import { obtenerCatalogoVenta, obtenerMetodosDePago, crearVenta } from "../api/ventaApi"
@@ -12,11 +12,12 @@ import { formatCurrency } from "../utils/numberFormatUtils"
 import { toast } from "react-toastify"
 import { InputMoneda } from "../components/InputMoneda"
 import { InputPorcentaje } from "../components/InputPorcentaje"
+import { InputCantidad } from "../components/InputCantidad"
 import { obtenerConfiguracion } from "../api/configuracionApi"
 import type { ConfiguracionDTO } from "../types/dto/Configuracion"
 import { useUsuarioStore } from "../store/usuarioStore"
 
-import { checkSessionStatus, abrirCajaManual } from "../api/cajaApi"
+
 
 const PaginaVentas: React.FC = () => {
   const { idVenta } = useParams<{ idVenta: string }>()
@@ -33,10 +34,26 @@ const PaginaVentas: React.FC = () => {
     montoAdicional: number | null
   }
 
-  // Estados principales
+  // Estado principal
+  const { usuario: user } = useUsuarioStore()
   const [catalogo, setCatalogo] = useState<ItemCatalogo[]>([])
   const [metodosDePago, setMetodosDePago] = useState<string[]>([])
   const [configuracion, setConfiguracion] = useState<ConfiguracionDTO | null>(null)
+
+  // Helper para scroll al enfocar inputs (Mejora UX teclado móvil) y auto-seleccionar
+  const handleInputFocus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const target = e.target;
+    
+    // Auto-seleccionar texto para sobrescribir fácil (Solo inputs)
+    if (target instanceof HTMLInputElement) {
+      target.select();
+    }
+
+    // Pequeño delay para permitir que el teclado virtual suba
+    setTimeout(() => {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+  };
 
   // Estado de los carritos
   const [carritos, setCarritos] = useState<EstadoCarrito[]>([
@@ -64,50 +81,10 @@ const PaginaVentas: React.FC = () => {
   const [cantidad, setCantidad] = useState<number>(1)
   const [mostrarSugerencias, setMostrarSugerencias] = useState<boolean>(false)
   const [activeIndex, setActiveIndex] = useState<number>(-1)
+  const [mobileTab, setMobileTab] = useState<'CONSTRUCTOR' | 'CARRITO'>('CONSTRUCTOR')
 
   // --- NEW: Session Check for Admin ---
-  const user = useUsuarioStore(state => state.usuario);
-  const [sessionActive, setSessionActive] = useState<boolean>(true);
-  const [checkingSession, setCheckingSession] = useState<boolean>(false);
 
-  useEffect(() => {
-    if (user?.rol === 'ADMIN') {
-      const check = async () => {
-        try {
-          // Block UI while checking
-          setSessionActive(false);
-          setCheckingSession(true);
-          const { active } = await checkSessionStatus(user.idUsuario);
-          setSessionActive(active);
-        } catch (error) {
-          console.error("Error checking session", error);
-          // If error, assume active? Or fail safe? 
-          // Let's assume NOT active so user can try again via button?
-          // No, if API fails, button might also fail.
-          // Keep default true, but log error.
-        } finally {
-          setCheckingSession(false);
-        }
-      };
-      check();
-    }
-  }, [user]);
-
-  const handleIniciarTurno = async () => {
-    if (!user) return;
-    try {
-      await abrirCajaManual(user.idUsuario);
-      setSessionActive(true);
-      toast.success("Turno iniciado correctamente");
-    } catch (error: any) {
-      if (error.response && error.response.status === 409) {
-        // Conflict: Arqueo already exists
-        toast.warning(error.response.data.message || "Ya existe un turno en curso");
-      } else {
-        toast.error("Error al iniciar turno");
-      }
-    }
-  };
 
   // ------------------------------------
 
@@ -176,9 +153,16 @@ const PaginaVentas: React.FC = () => {
       try {
         const productoEncontrado = await buscarProductoPorCodigo(codigo)
         if (productoEncontrado) {
-          añadirItemAlCarrito(productoEncontrado, 1)
+          const itemCatalogo: ItemCatalogo = {
+            tipo: "PRODUCTO",
+            id: productoEncontrado.idProducto,
+            nombre: productoEncontrado.nombre,
+            precioFinal: productoEncontrado.precio,
+            idCategoria: productoEncontrado.idCategoria,
+            aplicaDescuentoAutomatico: false
+          }
+          añadirItemAlCarrito(itemCatalogo, 1)
           setBusquedaItem("")
-          toast.info(`Se agregó ${productoEncontrado.nombre} al carrito`)
         } else {
           toast.error(`El código ${codigo} no pertenece a ningún producto.`)
         }
@@ -222,18 +206,37 @@ const PaginaVentas: React.FC = () => {
     const cargarDatos = async (): Promise<void> => {
       try {
         setCargando(true)
-        const [catalogoData, metodosData, configData] = await Promise.all([
-          obtenerCatalogoVenta(),
-          obtenerMetodosDePago(),
-          obtenerConfiguracion(),
-        ])
+        
+        // Load catalog
+        let catalogoData: ItemCatalogo[] = [];
+        try {
+          catalogoData = await obtenerCatalogoVenta();
+        } catch (err) {
+          console.error('Error al cargar catálogo:', err);
+        }
+        
+        // Load payment methods
+        let metodosData: string[] = [];
+        try {
+          metodosData = await obtenerMetodosDePago();
+        } catch (err) {
+          console.error('Error al cargar métodos de pago:', err);
+        }
+        
+        // Load configuration
+        let configData = null;
+        try {
+          configData = await obtenerConfiguracion();
+        } catch (err) {
+          console.error('Error al cargar configuración:', err);
+        }
 
         setCatalogo(catalogoData)
         setMetodosDePago(metodosData)
         setConfiguracion(configData)
       } catch (err) {
         const mensaje = err instanceof Error ? err.message : "Error al cargar datos"
-        console.error(mensaje)
+        console.error('Error general:', mensaje)
         toast.error(mensaje)
       } finally {
         setCargando(false)
@@ -268,9 +271,20 @@ const PaginaVentas: React.FC = () => {
     }
   }, [activeIndex]) // Se dispara solo cuando cambia el activeIndex
 
-  // Calcular precio unitario aplicado según ofertas
-  const calcularPrecioUnitario = (item: ItemCatalogo, _cantidad: number): number => {
-    return item.precioFinal
+  // Calcular precio unitario aplicado según ofertas y descuentos de categoría
+  const calcularPrecioUnitario = (item: ItemCatalogo, cantidad: number): number => {
+    // 1. Prioridad: Descuento de categoría (si está activo)
+    if (item.precioConDescuento && item.precioConDescuento > 0 && item.porcentaje) {
+      return item.precioConDescuento;
+    }
+    
+    // 2. Oferta por cantidad mínima
+    if (item.cantidadMinima && cantidad >= item.cantidadMinima && item.nuevoPrecio) {
+      return item.nuevoPrecio;
+    }
+    
+    // 3. Precio normal
+    return item.precioFinal;
   }
 
   // --- 2. AÑADIMOS LA NUEVA LÓGICA DE SELECCIÓN ---
@@ -507,7 +521,7 @@ const PaginaVentas: React.FC = () => {
       // Eliminar el carrito comprado
       handleEliminarCarrito(activeCartId)
 
-      setProcesandoVenta(false) // This lines up with previous success logic removal if any
+      setProcesandoVenta(false)
     } catch (err: any) {
       handleError(err)
     } finally {
@@ -545,26 +559,7 @@ const PaginaVentas: React.FC = () => {
 
   return (
     <div className="p-6 relative">
-      {/* BLOCKER FOR ADMIN WITHOUT SESSION */}
-      {user?.rol === 'ADMIN' && !sessionActive && !checkingSession && (
-        <div className="absolute inset-0 bg-gray-100 z-30 flex flex-col items-center justify-center text-center p-4 rounded-3xl m-4">
-          <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full animate-in fade-in zoom-in">
-            <div className="w-20 h-20 bg-blue-50 text-azul rounded-full flex items-center justify-center mx-auto mb-6">
-              <ListPlus size={40} />
-            </div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">Turno de Venta Inactivo</h2>
-            <p className="text-gray-500 mb-8">
-              Para realizar ventas, necesitas abrir la caja primero.
-            </p>
-            <button
-              onClick={handleIniciarTurno}
-              className="w-full py-4 bg-azul text-white font-bold rounded-xl hover:bg-azul-dark shadow-lg hover:shadow-azul/25 transition-all active:scale-95 flex items-center justify-center gap-2"
-            >
-              <span>Iniciar Arqueo y Vender</span>
-            </button>
-          </div>
-        </div>
-      )}
+
 
       {/* Encabezado */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
@@ -668,10 +663,36 @@ const PaginaVentas: React.FC = () => {
         )}
       </AnimatePresence>
 
+      {/* --- MÓVIL: TABS DE NAVEGACIÓN --- */}
+      <div className="lg:hidden mb-4 bg-gray-100 p-1 rounded-lg flex items-center">
+        <button
+          onClick={() => setMobileTab('CONSTRUCTOR')}
+          className={`flex-1 py-2 px-4 rounded-md text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+            mobileTab === 'CONSTRUCTOR' 
+              ? 'bg-white text-azul shadow-sm' 
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Search size={18} />
+          Buscar / Agregar
+        </button>
+        <button
+          onClick={() => setMobileTab('CARRITO')}
+          className={`flex-1 py-2 px-4 rounded-md text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+            mobileTab === 'CARRITO' 
+              ? 'bg-white text-verde shadow-sm' 
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <ShoppingBasket size={18} />
+          Carrito ({activeCart.items.reduce((acc, item) => acc + item.cantidad, 0)})
+        </button>
+      </div>
+
       {/* Layout principal: dos columnas */}
       <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_2fr] gap-6">
         {/* Columna Izquierda: Constructor de Venta */}
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className={`bg-white rounded-lg shadow-md p-6 ${mobileTab === 'CARRITO' ? 'hidden lg:block' : 'block'}`}>
           <h2 className="text-xl font-semibold mb-4 flex items-center">
             <Search className="mr-2" size={20} />
             Constructor de Venta
@@ -758,47 +779,51 @@ const PaginaVentas: React.FC = () => {
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="grid">
               <label className="block text-sm font-medium text-gray-700 mb-1">Cantidad</label>
-              <input
-                type="number"
-                min="1"
+              <InputCantidad
                 value={cantidad}
-                onChange={(e) => setCantidad(Number.parseInt(e.target.value) || 1)}
-                className="w-32 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                onChange={(val) => setCantidad(val)}
+                className="w-full sm:w-32 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg" 
               />
             </div>
-            <div className="flex items-end">
+            <div className="flex items-end flex-1">
               <button
-                onClick={añadirManualmente}
+                onClick={() => {
+                   añadirManualmente()
+                   // Opcional: switch a carrito después de añadir en móvil
+                   // setMobileTab('CARRITO') 
+                }}
                 disabled={!itemSeleccionado}
-                className="px-6 py-3 bg-verde text-white rounded-lg hover:bg-verde-dark disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center"
+                className="w-full sm:w-auto px-6 py-3 bg-verde text-white rounded-lg hover:bg-verde-dark disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center text-lg font-semibold shadow-sm active:scale-95 transition-transform" 
               >
-                <Plus size={16} className="mr-1" />
-                Añadir
+                <Plus size={20} className="mr-2" />
+                Añadir al Carrito
               </button>
             </div>
           </div>
 
           {/* Vista previa del item seleccionado */}
           {itemSeleccionado && (
-            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-              <h3 className="font-medium text-gray-900">{itemSeleccionado.nombre}</h3>
-              <div className="text-sm text-gray-600 mt-1">
-                Precio unitario: {formatCurrency(calcularPrecioUnitario(itemSeleccionado, cantidad))}
-
+            <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <h3 className="font-medium text-gray-900 text-lg">{itemSeleccionado.nombre}</h3>
+              <div className="text-sm text-gray-600 mt-1 flex justify-between">
+                <span>Precio unitario:</span>
+                <span>{formatCurrency(calcularPrecioUnitario(itemSeleccionado, cantidad))}</span>
               </div>
-              <div className="font-semibold text-green-600 mt-1">
-                Subtotal: {formatCurrency(calcularPrecioUnitario(itemSeleccionado, cantidad) * cantidad)}
+              <div className="font-bold text-green-600 mt-2 text-xl flex justify-between border-t border-gray-200 pt-2">
+                <span>Subtotal:</span>
+                <span>{formatCurrency(calcularPrecioUnitario(itemSeleccionado, cantidad) * cantidad)}</span>
               </div>
             </div>
           )}
 
           <div className="mt-6 pt-6 border-t border-gray-200">
-            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-end mr-0 lg:mr-32">
+            <div className="flex flex-col gap-3">
               <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Otros</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Items Varios / Otros</label>
                 <InputMoneda
                   value={inputOtros}
                   onValueChange={setInputOtros}
+                  onFocus={handleInputFocus}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="$ 0"
                 />
@@ -806,18 +831,18 @@ const PaginaVentas: React.FC = () => {
               <button
                 onClick={agregarMontoOtros}
                 disabled={!inputOtros || inputOtros <= 0}
-                className="px-6 py-3 bg-verde text-white rounded-lg hover:bg-verde-dark disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center"
+                className="w-full px-6 py-3 bg-gray-800 text-white rounded-lg hover:bg-gray-900 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center font-medium"
               >
-                <Plus size={16} className="mr-1" />
-                Añadir
+                <Plus size={16} className="mr-2" />
+                Añadir Monto Extra
               </button>
             </div>
-            <p className="text-sm text-gray-500 italic mt-2">Productos que no se encuentran cargados en el sistema</p>
+            <p className="text-sm text-gray-500 italic mt-3 text-center">Para productos fuera de inventario</p>
           </div>
         </div>
 
         {/* Columna Derecha: Carrito/Ticket */}
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className={`bg-white rounded-lg shadow-md p-6 ${mobileTab === 'CONSTRUCTOR' ? 'hidden lg:block' : 'block'}`}>
           <h2 className="text-xl font-semibold mb-4 flex items-center">
             <ShoppingBasket className="mr-2" size={20} />
             Ticket Actual
@@ -828,91 +853,181 @@ const PaginaVentas: React.FC = () => {
             {activeCart.items.length === 0 && !activeCart.montoAdicional ? (
               <div className="text-center text-gray-500 py-8">No hay items en el carrito</div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-200">
-                      <th className="text-left py-2 w-64">Item</th>
-                      <th className="text-center py-2">Cant.</th>
-                      <th className="text-center py-2">P. Unit.</th>
-                      <th className="text-center py-2">Subtotal</th>
-                      <th className="text-center py-2 w-[10px]"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {activeCart.items.map((item, indice) => (
-                      <tr key={indice} className="border-b border-gray-100">
-                        <td className="py-3">
-                          <div>
-                            <div className="font-medium mb-1 flex items-center gap-2">
-                              {item.item.nombre}
-                              {configuracion?.descuentoAutomatico && (
-                                item.item.aplicaDescuentoAutomatico ? (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700" title="Incluido en descuento automático">
-                                    <Percent size={12} className="mr-1" />
-                                    Con descuento
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500" title="No incluido en descuento automático">
-                                    Sin descuento
-                                  </span>
-                                )
-                              )}
-                            </div>
-                            <span
-                              className={`text-xs px-2 py-1 rounded ${item.item.tipo === "PRODUCTO"
-                                ? "bg-blue-100 text-blue-800"
-                                : "bg-green-100 text-green-800"
-                                }`}
-                            >
-                              {item.item.tipo}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-3 text-center">
-                          <input
-                            type="number"
-                            min="1"
-                            value={item.cantidad}
-                            onChange={(e) => modificarCantidadCarrito(indice, Number.parseInt(e.target.value) || 1)}
-                            className="w-[60px] p-1 text-center border border-gray-300 rounded"
-                          />
-                        </td>
-                        <td className="py-3 text-center">{formatCurrency(item.precioUnitarioAplicado)}</td>
-                        <td className="py-3 text-center font-semibold">
-                          {formatCurrency(item.cantidad * item.precioUnitarioAplicado)}
-                        </td>
-                        <td className="py-3 text-center">
-                          <button
-                            onClick={() => eliminarDelCarrito(indice)}
-                            className="text-red-600 hover:text-red-800"
+              <>
+                {/* VISTA MÓVIL: Tarjetas de Producto */}
+                <div className="md:hidden space-y-4">
+                  {activeCart.items.map((item, indice) => (
+                    <div key={indice} className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex flex-col gap-3 relative shadow-sm">
+                      {/* Botón Borrar Absoluto */}
+                      <button 
+                        onClick={() => eliminarDelCarrito(indice)}
+                        className="absolute top-0 right-0 p-3 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-tr-xl rounded-bl-xl transition-colors"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+
+                      {/* Header Producto */}
+                      <div className="pr-10">
+                        <div className="font-bold text-gray-800 text-lg leading-tight mb-1">{item.item.nombre}</div>
+                        <div className="flex items-center gap-2">
+                           <span className={`text-xs px-2 py-0.5 rounded font-medium ${item.item.tipo === "PRODUCTO" ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800"}`}>
+                             {item.item.tipo}
+                           </span>
+                           {/* Precio Unitario */}
+                           <span className="text-sm text-gray-500 font-medium">{formatCurrency(item.precioUnitarioAplicado)} c/u</span>
+                        </div>
+                      </div>
+
+                      {/* Controles y Total */}
+                      <div className="flex flex-wrap justify-between items-end gap-y-3 gap-x-2 mt-2">
+                        {/* Selector Cantidad Grande */}
+                        <div className="flex items-center gap-2 bg-white rounded-lg border border-gray-200 p-1 shadow-sm">
+                          <button 
+                            onClick={() => modificarCantidadCarrito(indice, item.cantidad - 1)}
+                            className="w-10 h-10 flex items-center justify-center bg-gray-100 rounded-md text-gray-700 active:bg-gray-200 transition-colors"
                           >
-                            <Trash2 size={16} />
+                             <Minus size={20} />
                           </button>
-                        </td>
-                      </tr>
-                    ))}
-                    {activeCart.montoAdicional !== null && activeCart.montoAdicional > 0 && (
-                      <tr className="border-b border-gray-100 bg-gray-50">
-                        <td className="py-3">
-                          <div>
-                            <div className="font-medium mb-1">Otros</div>
-                            <span className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-800">ADICIONAL</span>
-                          </div>
-                        </td>
-                        <td className="py-3 text-center text-gray-400">-</td>
-                        <td className="py-3 text-center text-gray-400">-</td>
-                        <td className="py-3 text-center font-semibold">{formatCurrency(activeCart.montoAdicional)}</td>
-                        <td className="py-3 text-center">
-                          <button onClick={eliminarOtros} className="text-red-600 hover:text-red-800">
-                            <Trash2 size={16} />
+                          <InputCantidad
+                            value={item.cantidad}
+                            onChange={(val) => modificarCantidadCarrito(indice, val)}
+                            className="w-12 text-center font-bold text-lg border-none focus:ring-0 p-0"
+                          />
+                          <button 
+                             onClick={() => modificarCantidadCarrito(indice, item.cantidad + 1)}
+                             className="w-10 h-10 flex items-center justify-center bg-azul/10 text-azul rounded-md active:bg-azul/20 transition-colors"
+                          >
+                             <Plus size={20} />
                           </button>
-                        </td>
+                        </div>
+                        
+                        {/* Subtotal */}
+                        <div className="text-right ml-auto">
+                          <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Subtotal</div>
+                          <div className="text-xl font-bold text-gray-800 break-all">{formatCurrency(item.cantidad * item.precioUnitarioAplicado)}</div>
+                        </div>
+                      </div>
+                      
+                      {/* Badge Descuento si aplica */}
+                      {configuracion?.descuentoAutomatico && (
+                          item.item.aplicaDescuentoAutomatico ? (
+                            <div className="mt-1 flex justify-start">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700 border border-green-100">
+                                <Percent size={10} className="mr-1" />
+                                Aplica desc. auto
+                              </span>
+                            </div>
+                          ) : null
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Item Adicional en Móvil */}
+                  {activeCart.montoAdicional !== null && activeCart.montoAdicional > 0 && (
+                     <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 flex flex-col gap-2 relative shadow-sm">
+                        <button 
+                          onClick={eliminarOtros} 
+                          className="absolute top-0 right-0 p-3 text-red-500 hover:text-red-700 rounded-tr-xl hover:bg-red-50 transition-colors"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                        <div>
+                          <span className="font-bold text-gray-800 text-lg">Monto Adicional</span>
+                          <span className="ml-2 text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-bold">OTROS</span>
+                        </div>
+                        <div className="text-right mt-2">
+                           <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Monto</div>
+                           <div className="text-xl font-bold text-gray-800">{formatCurrency(activeCart.montoAdicional)}</div>
+                        </div>
+                     </div>
+                  )}
+                </div>
+
+                {/* VISTA ESCRITORIO: Tabla Original */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="text-left py-2 w-64">Item</th>
+                        <th className="text-center py-2">Cant.</th>
+                        <th className="text-center py-2">P. Unit.</th>
+                        <th className="text-center py-2">Subtotal</th>
+                        <th className="text-center py-2 w-[10px]"></th>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {activeCart.items.map((item, indice) => (
+                        <tr key={indice} className="border-b border-gray-100">
+                          <td className="py-3">
+                            <div>
+                              <div className="font-medium mb-1 flex items-center gap-2">
+                                {item.item.nombre}
+                                {configuracion?.descuentoAutomatico && (
+                                  item.item.aplicaDescuentoAutomatico ? (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700" title="Incluido en descuento automático">
+                                      <Percent size={12} className="mr-1" />
+                                      Con descuento
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500" title="No incluido en descuento automático">
+                                      Sin descuento
+                                    </span>
+                                  )
+                                )}
+                              </div>
+                              <span
+                                className={`text-xs px-2 py-1 rounded ${item.item.tipo === "PRODUCTO"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : "bg-green-100 text-green-800"
+                                  }`}
+                              >
+                                {item.item.tipo}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3 text-center">
+                            <InputCantidad
+                              value={item.cantidad}
+                              onChange={(val) => modificarCantidadCarrito(indice, val)}
+                              className="w-[60px] p-1 text-center border border-gray-300 rounded"
+                            />
+                          </td>
+                          <td className="py-3 text-center">{formatCurrency(item.precioUnitarioAplicado)}</td>
+                          <td className="py-3 text-center font-semibold">
+                            {formatCurrency(item.cantidad * item.precioUnitarioAplicado)}
+                          </td>
+                          <td className="py-3 text-center">
+                            <button
+                              onClick={() => eliminarDelCarrito(indice)}
+                              className="text-red-600 hover:text-red-800"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {activeCart.montoAdicional !== null && activeCart.montoAdicional > 0 && (
+                        <tr className="border-b border-gray-100 bg-gray-50">
+                          <td className="py-3">
+                            <div>
+                              <div className="font-medium mb-1">Otros</div>
+                              <span className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-800">ADICIONAL</span>
+                            </div>
+                          </td>
+                          <td className="py-3 text-center text-gray-400">-</td>
+                          <td className="py-3 text-center text-gray-400">-</td>
+                          <td className="py-3 text-center font-semibold">{formatCurrency(activeCart.montoAdicional)}</td>
+                          <td className="py-3 text-center">
+                            <button onClick={eliminarOtros} className="text-red-600 hover:text-red-800">
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
 
@@ -927,6 +1042,7 @@ const PaginaVentas: React.FC = () => {
                     const nuevoMetodo = e.target.value
                     setCarritos(prev => prev.map(c => c.id === activeCartId ? { ...c, metodoPago: nuevoMetodo } : c))
                   }}
+                  onFocus={handleInputFocus}
                   className="w-full sm:w-64 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="">Seleccionar método de pago</option>
@@ -963,6 +1079,7 @@ const PaginaVentas: React.FC = () => {
                             const valorValidado = Math.min(nuevoValor || 0, totalGeneral)
                             setCarritos(prev => prev.map(c => c.id === activeCartId ? { ...c, descuento: valorValidado } : c))
                           }}
+                          onFocus={handleInputFocus}
                           className="w-32 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           placeholder="$ 0"
                         />
@@ -972,6 +1089,7 @@ const PaginaVentas: React.FC = () => {
                           onValueChange={(nuevoValor) => {
                             setCarritos(prev => prev.map(c => c.id === activeCartId ? { ...c, descuento: nuevoValor } : c))
                           }}
+                          onFocus={handleInputFocus}
                           className="w-32 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
                           placeholder="0 %"
                         />
@@ -1029,6 +1147,30 @@ const PaginaVentas: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Botón Flotante para ir al checkout en móvil */}
+      {mobileTab === 'CONSTRUCTOR' && activeCart.items.length > 0 && (
+        <div className="fixed bottom-4 right-4 left-4 lg:hidden z-20">
+          <button
+            onClick={() => setMobileTab('CARRITO')}
+            className="w-full bg-azul text-white p-4 rounded-xl shadow-xl flex items-center justify-between animate-bounce-subtle"
+          >
+            <div className="flex items-center">
+              <span className="bg-white/20 p-2 rounded-lg mr-3">
+                <ShoppingBasket size={24} />
+              </span>
+              <div className="text-left">
+                <div className="text-xs font-light text-blue-100">Total acumulado</div>
+                <div className="font-bold text-lg">{formatCurrency(totalGeneral)}</div>
+              </div>
+            </div>
+            <div className="flex items-center font-bold">
+              Ver Carrito
+              <ChevronRight size={20} className="ml-1" />
+            </div>
+          </button>
+        </div>
+      )}
 
       {/* Info Card: Detalles del Descuento Automático */}
       {configuracion?.descuentoAutomatico && (

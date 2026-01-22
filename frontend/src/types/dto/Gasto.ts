@@ -1,6 +1,6 @@
 // Corresponde al objeto 'content' de la respuesta paginada
 export interface Gasto {
-  idGasto: number
+  idGasto: string | number // String para Firestore, number para compatibilidad
   tipoGasto: string
   descripcion: string
   monto: number
@@ -22,4 +22,5 @@ export interface GastoDTO {
   tipoGasto: string
   descripcion: string
   monto: number
+  usuario?: string
 }

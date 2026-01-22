@@ -1,10 +1,12 @@
 "use client"
 
 import type React from "react"
+import { useState, useEffect } from "react"
 import type { Categoria } from "../../types/dto/Categoria"
 import { formatCurrency } from "../../utils/numberFormatUtils"
 import { useEscapeKey } from "../../hooks/useEscapeKey"
 import { Plus, Tag, Box, LayoutGrid } from "lucide-react"
+import { obtenerProductosPorCategoria } from "../../api/categoriaApi"
 
 interface ModalDetallesCategoriaProps {
   isOpen: boolean
@@ -13,8 +15,32 @@ interface ModalDetallesCategoriaProps {
 }
 
 export const ModalDetallesCategoria: React.FC<ModalDetallesCategoriaProps> = ({ isOpen, onClose, categoria }) => {
+  const [productos, setProductos] = useState<any[]>([])
+  const [cargandoProductos, setCargandoProductos] = useState(false)
 
   useEscapeKey(onClose, isOpen);
+
+  // Cargar productos cuando se abre el modal
+  useEffect(() => {
+    const cargarProductos = async () => {
+      if (isOpen && categoria) {
+        setCargandoProductos(true)
+        try {
+          const productosData = await obtenerProductosPorCategoria(categoria.idCategoria)
+          setProductos(productosData)
+        } catch (error) {
+          console.error("Error al cargar productos:", error)
+          setProductos([])
+        } finally {
+          setCargandoProductos(false)
+        }
+      } else {
+        setProductos([])
+      }
+    }
+
+    cargarProductos()
+  }, [isOpen, categoria])
 
   if (!isOpen || !categoria) return null
 
@@ -60,7 +86,7 @@ export const ModalDetallesCategoria: React.FC<ModalDetallesCategoriaProps> = ({ 
                 <Box size={16} />
                 <span className="text-xs font-semibold uppercase tracking-wider">Productos Asociados</span>
               </div>
-              <p className="text-2xl text-center font-bold text-gray-800">{categoria.productos.length}</p>
+              <p className="text-2xl text-center font-bold text-gray-800">{productos.length}</p>
             </div>
             <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
               <div className="flex items-center gap-2 text-gray-500 mb-1">
@@ -74,9 +100,13 @@ export const ModalDetallesCategoria: React.FC<ModalDetallesCategoriaProps> = ({ 
           <div className="space-y-3">
             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Lista de Productos</label>
             <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-100 bg-white">
-              {categoria.productos.length > 0 ? (
+              {cargandoProductos ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-400 text-sm">Cargando productos...</p>
+                </div>
+              ) : productos.length > 0 ? (
                 <div className="divide-y divide-gray-50">
-                  {categoria.productos.map((producto, index) => (
+                  {productos.map((producto, index) => (
                     <div key={index} className="flex justify-between items-center px-4 py-3 hover:bg-gray-50 transition-colors">
                       <span className="text-sm font-medium text-gray-700">{producto.nombre}</span>
                       <span className="text-sm font-bold text-azul">{formatCurrency(producto.precio)}</span>

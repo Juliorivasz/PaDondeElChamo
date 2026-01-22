@@ -12,7 +12,7 @@ export const construirArbolCategorias = (categorias: Categoria[]): CategoriaArbo
     return [];
   }
 
-  const mapa = new Map<number, CategoriaArbol>();
+  const mapa = new Map<string, CategoriaArbol>();
   const raices: CategoriaArbol[] = [];
 
   // 1. Primer paso: Inicializamos el mapa con todas las categorías.

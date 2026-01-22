@@ -9,10 +9,11 @@ interface ModalCierreCajaProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  onSkip?: () => void; // Optional: Allow logout without closing cash
   idUsuario: number;
 }
 
-const ModalCierreCaja: React.FC<ModalCierreCajaProps> = ({ isOpen, onClose, onSuccess, idUsuario }) => {
+const ModalCierreCaja: React.FC<ModalCierreCajaProps> = ({ isOpen, onClose, onSuccess, onSkip, idUsuario }) => {
   const user = useUsuarioStore(state => state.usuario);
   const isAdmin = user?.rol === 'ADMIN';
 
@@ -112,6 +113,19 @@ const ModalCierreCaja: React.FC<ModalCierreCajaProps> = ({ isOpen, onClose, onSu
                 </>
               )}
             </button>
+            
+            {/* Skip button for employees */}
+            {!isAdmin && onSkip && (
+              <button
+                type="button"
+                onClick={onSkip}
+                className="w-full py-3 bg-gray-100 text-gray-700 hover:bg-gray-200 font-medium rounded-xl transition-colors"
+                disabled={loading}
+              >
+                Salir sin cerrar caja
+              </button>
+            )}
+            
             <button
               type="button"
               onClick={onClose} 

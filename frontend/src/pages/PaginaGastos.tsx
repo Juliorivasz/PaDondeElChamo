@@ -14,6 +14,7 @@ import { ModalNuevoGasto } from "../components/gastos/ModalNuevoGasto"
 import { ModalEditarGasto } from "../components/gastos/ModalEditarGasto"
 import { ModalDetallesGasto } from "../components/gastos/ModalDetallesGasto"
 import { formatCurrency } from "../utils/numberFormatUtils"
+import { PanelFiltrosColapsable } from "../components/PanelFiltrosColapsable"
 
 const PaginaGastos: React.FC = () => {
   // Estados principales
@@ -161,7 +162,7 @@ const PaginaGastos: React.FC = () => {
       </div>
 
       {/* Panel de Filtros */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-5 mb-8">
+      <PanelFiltrosColapsable titulo="Filtros de Búsqueda" defaultOpen={false}>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5 items-end">
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 ml-1">Fecha de Inicio</label>
@@ -221,14 +222,14 @@ const PaginaGastos: React.FC = () => {
 
           <button
             onClick={limpiarFiltros}
-            className="p-2.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition-colors flex items-center justify-center group w-full lg:w-fit shadow-sm"
+            className="p-2.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition-colors flex items-center justify-center group w-full lg:w-fit shadow-sm h-[45px] mt-auto"
             title="Limpiar filtros"
           >
             <BrushCleaning size={20} className="group-hover:rotate-12 transition-transform mr-2 lg:mr-0" />
             <span className="lg:hidden font-semibold">Limpiar</span>
           </button>
         </div>
-      </div>
+      </PanelFiltrosColapsable>
 
       {/* Tabla de Gastos */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
@@ -268,7 +269,11 @@ const PaginaGastos: React.FC = () => {
                     </tr>
                   ) : (
                     paginaDeGastos?.content.map((gasto) => (
-                      <tr key={gasto.idGasto} className="hover:bg-gray-50/50 transition-colors group">
+                      <tr 
+                        key={gasto.idGasto} 
+                        onClick={() => abrirModalDetalles(gasto)}
+                        className="hover:bg-gray-50/50 transition-colors group cursor-pointer"
+                      >
                         <td className="px-6 py-4 text-gray-400 font-mono text-xs">#{gasto.idGasto}</td>
                         <td className="px-6 py-4">
                           <span className="px-2.5 py-1 bg-azul/5 text-azul rounded-lg text-xs font-bold uppercase tracking-wider">
@@ -284,7 +289,7 @@ const PaginaGastos: React.FC = () => {
                           <div className="font-bold text-gray-900">{formatearFecha(gasto.fechaHora)}</div>
                           <div className="text-[10px] text-gray-400 uppercase font-black">{formatearHora(gasto.fechaHora)}</div>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                           <div className="flex justify-end items-center space-x-2">
                             <button
                               onClick={() => abrirModalDetalles(gasto)}

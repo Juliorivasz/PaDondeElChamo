@@ -1,14 +1,14 @@
 // Para el GET /categoria/abm
 export interface Categoria {
-  idCategoria: number
+  idCategoria: string  // Changed to string for Firebase
   nombre: string
-  descripcion: string
+  descripcion?: string  // Made optional to match API
   estado: boolean
   stockMinimo: number
   aplicaDescuentoAutomatico: boolean
-  idCategoriaPadre: number | null
-  productos: { 
-    idProducto: number
+  idCategoriaPadre?: string | null  // Made optional to match API
+  productos?: {  // Made optional to match API
+    idProducto: string  // Changed to string for Firebase
     nombre: string
     precio: number
   }[]
@@ -18,7 +18,7 @@ export interface Categoria {
 export interface CrearCategoriaDTO {
   nombre: string
   descripcion: string
-  idCategoriaPadre: number | null
+  idCategoriaPadre: string | null  // Changed to string for Firebase
   stockMinimo: number
   aplicaDescuentoAutomatico?: boolean
 }
@@ -27,7 +27,7 @@ export interface CrearCategoriaDTO {
 export interface ModificarCategoriaDTO {
   nombre?: string
   descripcion?: string
-  idCategoriaPadre?: number | null
+  idCategoriaPadre?: string | null  // Changed to string for Firebase
   stockMinimo?: number
   aplicaDescuentoAutomatico?: boolean
 }
@@ -38,3 +38,4 @@ export interface CategoriaArbol extends Categoria {
   nivel: number
   esHijoDeRaiz?: boolean
 }
+

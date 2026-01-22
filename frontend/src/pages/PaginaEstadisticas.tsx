@@ -69,10 +69,9 @@ const PaginaEstadisticas: React.FC = () => {
 
   // Estados de filtros (sin cambios)
   const [fechaInicio, setFechaInicio] = useState<Date | null>(() => {
-    const haceUnAno = new Date()
-    haceUnAno.setFullYear(haceUnAno.getFullYear() - 1)
-    haceUnAno.setDate(1)
-    return haceUnAno
+    const hoy = new Date()
+    // Inicializa con el primer día del mismo mes del AÑO PASADO para comparación anual
+    return new Date(hoy.getFullYear() - 1, hoy.getMonth(), 1)
   })
 
   const [fechaFin, setFechaFin] = useState<Date | null>(() => {
@@ -81,12 +80,22 @@ const PaginaEstadisticas: React.FC = () => {
     return new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0)
   })
 
-  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<number | null>(null)
+  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<string | null>(null)
   const [paginaRentabilidad, setPaginaRentabilidad] = useState<number>(0)
 
   // Estados de carga (sin cambios)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const manejarCambioFechaInicio = (date: Date | null) => {
+    if (date) {
+      // Asegurar que siempre sea el primer día del mes seleccionado
+      const primerDiaDelMes = new Date(date.getFullYear(), date.getMonth(), 1)
+      setFechaInicio(primerDiaDelMes)
+    } else {
+      setFechaInicio(null)
+    }
+  }
 
   const manejarCambioFechaFin = (date: Date | null) => {
     if (date) {
@@ -168,7 +177,7 @@ const PaginaEstadisticas: React.FC = () => {
           metodosPagoData,
           ventasPorCategoriaData,
         ] = await Promise.all([
-          obtenerKpis(),
+          obtenerKpis(fechasParams),
           obtenerIngresosVsEgresos(fechasParams),
           obtenerCategoriasRentables(fechasParams, paginaRentabilidad),
           obtenerVolumenVentas(fechasParams, categoriaSeleccionada),
@@ -268,7 +277,8 @@ const PaginaEstadisticas: React.FC = () => {
         fontSize: 13,
       },
     },
-    chartArea: { left: 65, top: 30, right: 10, width: "80%", height: "70%" },
+    // Use explicit margins to ensure responsiveness without clipping
+    chartArea: { left: 70, right: 20, top: 40, bottom: 70 },
   }
 
   const opcionesProductosRentables = {
@@ -280,7 +290,8 @@ const PaginaEstadisticas: React.FC = () => {
     },
     colors: ["#7393A6"],
     backgroundColor: "transparent",
-    chartArea: { left: 135, top: 15, right: 35, width: "100%", height: "80%" },
+    // Large left margin for product names
+    chartArea: { left: 120, right: 20, top: 20, bottom: 20 },
   }
 
   const opcionesVolumenVentas = useMemo(() => {
@@ -296,7 +307,7 @@ const PaginaEstadisticas: React.FC = () => {
 
     return {
       bar: {
-        groupWidth: "40px",
+        groupWidth: "60%", // Adjusted for better look
       },
       legend: {
         position: "none",
@@ -318,7 +329,7 @@ const PaginaEstadisticas: React.FC = () => {
       },
       colors: ["#7393A6"],
       backgroundColor: "transparent",
-      chartArea: { left: 60, top: 30, right: 40, width: "80%", height: "70%" },
+      chartArea: { left: 60, right: 20, top: 30, bottom: 80 },
     }
   }, [datosVolumenVentas, categoriaSeleccionada, categorias])
 
@@ -339,14 +350,14 @@ const PaginaEstadisticas: React.FC = () => {
     },
     colors: ["#7393A6"],
     backgroundColor: "transparent",
-    chartArea: { left: 60, top: 60, bottom: 35, right: 30, width: "80%", height: "70%" },
+    chartArea: { left: 60, right: 20, top: 30, bottom: 70 },
   }
 
   const opcionesVentasPorCategoria = {
     is3D: true,
     backgroundColor: "transparent",
     legend: {
-      position: "labeled",
+      position: "right",
       textStyle: {
         color: "#4B5563",
         fontSize: 12,
@@ -354,14 +365,15 @@ const PaginaEstadisticas: React.FC = () => {
       },
     },
     colors: ["#6f876f", "#4b576c", "#9c5a4b", "#e2ab70", "#ECCAB1", "#837587"],
-    chartArea: { left: 30, top: 40, bottom: 30, right: 30, width: "80%", height: "70%" },
+    // Adjust chartArea to leave space for the legend on the right
+    chartArea: { left: 10, top: 20, bottom: 20, width: "100%", height: "100%" }, 
   }
 
   const opcionesMetodosDePago = {
     isStacked: "percent",
     backgroundColor: "transparent",
     bar: {
-      groupWidth: "27%",
+      groupWidth: "50%",
     },
     annotations: {
       textStyle: {
@@ -386,37 +398,37 @@ const PaginaEstadisticas: React.FC = () => {
       },
     },
     colors: ["#72434F", "#94686D", "#FFB37B", "#FBDB93"],
-    chartArea: { left: 50, top: 30, bottom: 90, right: 20, width: "80%", height: "70%" },
+    chartArea: { left: 60, right: 20, top: 20, bottom: 60 },
   }
 
-  const recaudadoMes = (kpis.find((kpi) => kpi.nombre === "Recaudado este Mes")?.valor as number) || 0
-  const gananciaMes = (kpis.find((kpi) => kpi.nombre === "Ganancia este Mes")?.valor as number) || 0
+  const recaudadoMes = (kpis.find((kpi) => kpi.nombre.includes("Recaudado"))?.valor as number) || 0
+  const gananciaMes = (kpis.find((kpi) => kpi.nombre.includes("Ganancia"))?.valor as number) || 0
   const porcentajeGanancia = recaudadoMes > 0 ? (gananciaMes / recaudadoMes) * 100 : 0
 
   const enStock = (kpis.find((kpi) => kpi.nombre === "En Stock")?.valor as number) || 0
   const enPosiblesVentas = (kpis.find((kpi) => kpi.nombre === "En Posibles Ventas")?.valor as number) || 0
 
   return (
-    <div className="p-6 min-h-screen">
+    <div className="p-4 sm:p-6 min-h-screen">
       {/* Encabezado */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
-          <ChartNoAxesCombined className="text-azul" size={32} />
+          <ChartNoAxesCombined className="text-azul" size={28} />
           <div>
-            <h1 className="text-3xl font-bold text-gray-800">Estadísticas</h1>
-            <p className="text-gray-600">Panel de indicadores y análisis del negocio</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Estadísticas</h1>
+            <p className="text-sm sm:text-base text-gray-600">Panel de indicadores y análisis del negocio</p>
           </div>
         </div>
       </div>
 
       {/* Panel de Filtros */}
-      <div className="bg-white rounded-lg shadow-sm p-4 pr-8 mb-6">
-        <div className="flex items-end gap-4">
-          <div>
+      <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+        <div className="flex flex-col md:flex-row items-end gap-4">
+          <div className="w-full md:w-auto">
             <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Inicio</label>
             <DatePicker
               selected={fechaInicio}
-              onChange={(date) => setFechaInicio(date)}
+              onChange={manejarCambioFechaInicio}
               showMonthYearPicker
               locale="es"
               dateFormat="MM/yyyy"
@@ -425,7 +437,7 @@ const PaginaEstadisticas: React.FC = () => {
             />
           </div>
 
-          <div>
+          <div className="w-full md:w-auto">
             <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Fin</label>
             <DatePicker
               selected={fechaFin}
@@ -438,10 +450,10 @@ const PaginaEstadisticas: React.FC = () => {
             />
           </div>
 
-          <div className="ml-auto mb-3">
+          <div className="w-full md:ml-auto md:w-auto mt-2 md:mt-0">
             <button
               onClick={() => setModalExportarAbierto(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-[#19754C] text-white rounded-md hover:bg-[#156541]"
+              className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-[#19754C] text-white rounded-md hover:bg-[#156541] transition-colors shadow-sm"
             >
               <TableProperties size={18} />
               Exportar a Excel
@@ -451,16 +463,16 @@ const PaginaEstadisticas: React.FC = () => {
       </div>
 
       {/* Mensaje de Error */}
-      {error && <div className="p-4 bg-red-100 border-l-4 border-red-500 text-red-700 mb-6">{error}</div>}
+      {error && <div className="p-4 bg-red-100 border-l-4 border-red-500 text-red-700 mb-6 rounded-r-lg">{error}</div>}
 
-      <div className="grid grid-cols-6 gap-6 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 sm:gap-6 mb-6">
         {kpis
-          .filter((kpi) => kpi.nombre !== "Ganancia este Mes" && kpi.nombre !== "En Stock" && kpi.nombre !== "En Posibles Ventas")
+          .filter((kpi) => !kpi.nombre.includes("Ganancia") && kpi.nombre !== "En Stock" && kpi.nombre !== "En Posibles Ventas")
           .map((kpi, index) => (
-            <div key={index} className="bg-white rounded-lg shadow-sm px-4 py-5">
-              <p className="text-sm text-center font-medium text-gray-600 mb-3">{kpi.nombre}</p>
+            <div key={index} className="bg-white rounded-lg shadow-sm px-4 py-5 hover:shadow-md transition-shadow">
+              <p className="text-xs sm:text-sm text-center font-bold text-gray-400 uppercase tracking-wider mb-2">{kpi.nombre}</p>
               <div className="flex items-center justify-center">
-                <div className="flex-shrink-0">
+                <div className="flex-shrink-0 opacity-80 scale-90 sm:scale-100">
                   {/* Lógica de íconos (sin cambios) */}
                   {index === 0 && <PiggyBank className="h-8 w-8 text-pink-400" />}
                   {index === 1 && <Coins className="h-8 w-8 text-yellow-500" />}
@@ -470,8 +482,7 @@ const PaginaEstadisticas: React.FC = () => {
                   {index === 5 && <AlertTriangle className="h-8 w-8 text-rojo" />}
                 </div>
                 <div className="ml-3">
-
-                  <p className="text-xl font-semibold text-center text-gray-900">
+                  <p className="text-lg sm:text-xl font-bold text-center text-gray-900">
                     {index === 0 || index === 1 || index === 2 || index === 4 || index === 6
                       ? formatCurrency(kpi.valor as number)
                       : kpi.valor.toString()}
@@ -481,63 +492,61 @@ const PaginaEstadisticas: React.FC = () => {
             </div>
           ))}
 
-        <div className="col-span-4 bg-white rounded-lg shadow-sm px-4 py-5">
-          <p className="text-xl text-center font-medium text-gray-700 ml-5 mb-4">Ganancia sobre lo Recaudado del Mes</p>
+        <div className="col-span-1 sm:col-span-2 lg:col-span-3 xl:col-span-4 bg-white rounded-lg shadow-sm px-4 py-5">
+          <p className="text-lg sm:text-xl text-center font-medium text-gray-700 mb-4">Ganancia sobre lo Recaudado del Periodo</p>
 
-          <div className="space-y-2">
-            <div className="relative h-7 bg-gray-200 rounded-lg overflow-hidden">
+          <div className="space-y-4 px-2 sm:px-4">
+            <div className="relative h-8 bg-gray-100 rounded-full overflow-hidden shadow-inner">
               <div
-                className="absolute left-0 top-0 h-full bg-verde transition-all duration-300"
+                className="absolute left-0 top-0 h-full bg-gradient-to-r from-verde to-green-400 transition-all duration-500 ease-out"
                 style={{ width: `${porcentajeGanancia}%` }}
               />
               <div
-                className="absolute top-0 h-full flex items-center"
-                style={{ left: `${porcentajeGanancia / 2}%`, transform: "translateX(-50%)" }}
+                className="absolute top-0 h-full flex items-center justify-center w-full"
               >
-                <span className="text-sm font-medium text-white drop-shadow-sm">
-                  {porcentajeGanancia.toFixed(1)}%
+                <span className="text-sm font-bold text-gray-700 drop-shadow-sm bg-white/50 px-2 rounded-lg backdrop-blur-[1px]">
+                  {porcentajeGanancia.toFixed(1)}% Margen
                 </span>
               </div>
             </div>
 
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                <div className="ml-4">
-                  <p className="text-sm text-gray-500">Ganancia</p>
-                  <p className="text-base font-semibold text-gray-900">{formatCurrency(gananciaMes)}</p>
-                </div>
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 text-center sm:text-left">
+              <div className="bg-green-50 px-4 py-2 rounded-lg border border-green-100 w-full sm:w-auto">
+                <p className="text-xs text-green-600 font-bold uppercase">Ganancia Neta</p>
+                <p className="text-lg font-bold text-green-700">{formatCurrency(gananciaMes)}</p>
               </div>
 
-              <div className="flex items-center gap-2 mr-4">
-                <div className="text-right">
-                  <p className="text-sm text-gray-500">Recaudado</p>
-                  <p className="text-base font-semibold text-gray-900">{formatCurrency(recaudadoMes)}</p>
+              <div className="bg-gray-50 px-4 py-2 rounded-lg border border-gray-100 w-full sm:w-auto">
+                <div className="text-right sm:text-right text-center">
+                  <p className="text-xs text-gray-500 font-bold uppercase">Total Recaudado</p>
+                  <p className="text-lg font-bold text-gray-700">{formatCurrency(recaudadoMes)}</p>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="col-span-2 bg-white rounded-lg shadow-sm p-6 flex flex-col justify-between h-full">
+        <div className="col-span-1 sm:col-span-2 lg:col-span-3 xl:col-span-2 bg-white rounded-lg shadow-sm p-6 flex flex-col justify-between">
           {/* Título */}
-          <p className="text-xl text-center font-medium text-gray-700 mb-4">
+          <p className="text-lg sm:text-xl text-center font-medium text-gray-700 mb-4">
             Estado Actual del Inventario
           </p>
 
           {/* Contenedor para los valores */}
-          <div className="flex justify-around items-center text-center mt-2 flex-grow">
-            <div>
-              <p className="text-sm text-gray-500 font-medium">En Stock</p>
-              <p className="text-xl font-bold text-gray-800 mt-1">
+          <div className="flex flex-col sm:flex-row justify-around items-center text-center gap-4 flex-grow">
+            <div className="p-3 bg-blue-50 rounded-xl w-full sm:w-auto">
+              <p className="text-xs text-blue-600 font-bold uppercase tracking-wide">En Stock</p>
+              <p className="text-xl font-black text-blue-800 mt-1">
                 {formatCurrency(enStock)}
               </p>
             </div>
 
-            <div className="border-l border-gray-200 h-16"></div>
+            <div className="hidden sm:block border-l-2 border-dashed border-gray-200 h-12"></div>
+            <div className="sm:hidden border-t-2 border-dashed border-gray-200 w-full"></div>
 
-            <div>
-              <p className="text-sm text-gray-500 font-medium">En Posibles Ventas</p>
-              <p className="text-xl font-bold text-gray-800 mt-1">
+            <div className="p-3 bg-purple-50 rounded-xl w-full sm:w-auto">
+              <p className="text-xs text-purple-600 font-bold uppercase tracking-wide">En Posibles Ventas</p>
+              <p className="text-xl font-black text-purple-800 mt-1">
                 {formatCurrency(enPosiblesVentas)}
               </p>
             </div>
@@ -546,31 +555,31 @@ const PaginaEstadisticas: React.FC = () => {
       </div>
 
       {/* Sección de Gráficos */}
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* Top Categorías Rentables */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xl font-semibold text-gray-800">Categorías por Rentabilidad</h3>
+        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-800">Categorías por Rentabilidad</h3>
 
             {/* Controles de Paginación */}
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 bg-gray-50 p-1 rounded-lg self-end sm:self-auto">
               <button
                 onClick={() => setPaginaRentabilidad((p) => Math.max(0, p - 1))}
                 disabled={paginaRentabilidad === 0 || cargando}
-                className="p-1 rounded-md hover:bg-gray-100 disabled:opacity-50"
+                className="p-1 rounded-md hover:bg-white hover:shadow-sm disabled:opacity-50 transition-all text-gray-600"
               >
                 <ChevronLeft size={20} />
               </button>
 
-              <p className="text-sm text-gray-700">
-                Página <span className="font-medium">{paginaRentabilidad + 1}</span>
+              <p className="text-xs sm:text-sm text-gray-700 font-mono px-2">
+                Pág <span className="font-bold">{paginaRentabilidad + 1}</span>
               </p>
 
               <button
                 disabled={!datosCategoriasRentables || datosCategoriasRentables.slice(1).length < 7 || cargando}
                 onClick={() => setPaginaRentabilidad((p) => p + 1)}
-                className="p-1 rounded-md hover:bg-gray-100 disabled:opacity-50"
+                className="p-1 rounded-md hover:bg-white hover:shadow-sm disabled:opacity-50 transition-all text-gray-600"
               >
                 <ChevronRight size={20} />
               </button>
@@ -578,52 +587,56 @@ const PaginaEstadisticas: React.FC = () => {
           </div>
 
           {cargando || !datosCategoriasRentables ? (
-            <div className="h-64 flex items-center justify-center text-gray-500">
+            <div className="h-64 flex items-center justify-center text-gray-500 bg-gray-50/50 rounded-xl">
               <div className="flex items-center">
                 <RefreshCw className="animate-spin mr-2" size={20} />
                 Cargando datos...
               </div>
             </div>
           ) : (
-            <Chart
-              chartType="BarChart"
-              width="100%"
-              height="300px"
-              data={datosCategoriasRentables}
-              options={opcionesProductosRentables}
-            />
+            <div className="w-full overflow-hidden">
+              <Chart
+                chartType="BarChart"
+                width="100%"
+                height="300px"
+                data={datosCategoriasRentables}
+                options={opcionesProductosRentables}
+              />
+            </div>
           )}
         </div>
 
         {/* Ventas por Método de Pago */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-xl font-semibold text-gray-800 mb-4">Ventas por Método de Pago</h3>
+        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+          <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-4">Ventas por Método de Pago</h3>
           {cargando || !datosMetodosDePago ? (
-            <div className="h-64 flex items-center justify-center text-gray-500">
+            <div className="h-64 flex items-center justify-center text-gray-500 bg-gray-50/50 rounded-xl">
               <div className="flex items-center">
                 <RefreshCw className="animate-spin mr-2" size={20} />
                 Cargando datos...
               </div>
             </div>
           ) : (
-            <Chart
-              chartType="BarChart"
-              width="100%"
-              height="300px"
-              data={datosPivoteadosParaGrafico}
-              options={opcionesMetodosDePago}
-            />
+             <div className="w-full overflow-hidden">
+              <Chart
+                chartType="BarChart"
+                width="100%"
+                height="300px"
+                data={datosPivoteadosParaGrafico}
+                options={opcionesMetodosDePago}
+              />
+            </div>
           )}
         </div>
 
         {/* Volumen de Ventas Mensual */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xl font-semibold text-gray-800">Volumen de Ventas Mensual</h3>
+        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-800">Volumen de Ventas Mensual</h3>
             <select
               value={categoriaSeleccionada || ""}
-              onChange={(e) => setCategoriaSeleccionada(e.target.value ? Number(e.target.value) : null)}
-              className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(e) => setCategoriaSeleccionada(e.target.value || null)}
+              className="w-full sm:w-auto px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
               disabled={cargando}
             >
               <option value="">Todas las categorías</option>
@@ -635,83 +648,91 @@ const PaginaEstadisticas: React.FC = () => {
             </select>
           </div>
           {cargando || !datosVolumenVentas ? (
-            <div className="h-64 flex items-center justify-center text-gray-500">
+            <div className="h-64 flex items-center justify-center text-gray-500 bg-gray-50/50 rounded-xl">
               <div className="flex items-center">
                 <RefreshCw className="animate-spin mr-2" size={20} />
                 Cargando datos...
               </div>
             </div>
           ) : (
-            <Chart
-              chartType="ColumnChart"
-              width="100%"
-              height="300px"
-              data={datosVolumenVentas}
-              options={opcionesVolumenVentas}
-            />
+            <div className="w-full overflow-hidden">
+              <Chart
+                chartType="ColumnChart"
+                width="100%"
+                height="300px"
+                data={datosVolumenVentas}
+                options={opcionesVolumenVentas}
+              />
+            </div>
           )}
         </div>
 
         {/* Gráfico 1: Ingresos vs Egresos */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-xl font-semibold text-gray-800 mb-4">Ingresos vs. Egresos</h3>
+        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+          <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-4">Ingresos vs. Egresos</h3>
           {cargando || !datosIngresosVsEgresos ? (
-            <div className="h-64 flex items-center justify-center text-gray-500">
+            <div className="h-64 flex items-center justify-center text-gray-500 bg-gray-50/50 rounded-xl">
               <div className="flex items-center">
                 <RefreshCw className="animate-spin mr-2" size={20} />
                 Cargando datos...
               </div>
             </div>
           ) : (
-            <Chart
-              chartType="AreaChart"
-              width="100%"
-              height="300px"
-              data={datosIngresosVsEgresos}
-              options={opcionesIngresosVsEgresos}
-            />
+             <div className="w-full overflow-hidden">
+              <Chart
+                chartType="AreaChart"
+                width="100%"
+                height="300px"
+                data={datosIngresosVsEgresos}
+                options={opcionesIngresosVsEgresos}
+              />
+            </div>
           )}
         </div>
 
         {/* Ventas por Hora */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-xl font-semibold text-gray-800 mb-4">Cantidad de Ventas por Hora</h3>
+        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+          <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-4">Cantidad de Ventas por Hora</h3>
           {cargando || !datosVentasPorHora ? (
-            <div className="h-64 flex items-center justify-center text-gray-500">
+            <div className="h-64 flex items-center justify-center text-gray-500 bg-gray-50/50 rounded-xl">
               <div className="flex items-center">
                 <RefreshCw className="animate-spin mr-2" size={20} />
                 Cargando datos...
               </div>
             </div>
           ) : (
-            <Chart
-              chartType="ColumnChart"
-              width="100%"
-              height="300px"
-              data={datosVentasPorHora}
-              options={opcionesVentasPorHora}
-            />
+             <div className="w-full overflow-hidden">
+              <Chart
+                chartType="ColumnChart"
+                width="100%"
+                height="300px"
+                data={datosVentasPorHora}
+                options={opcionesVentasPorHora}
+              />
+            </div>
           )}
         </div>
 
         {/* Ventas por Categoría */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-xl font-semibold text-gray-800 mb-4">Categorías con Mayor Facturación</h3>
+        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+          <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-4">Categorías con Mayor Facturación</h3>
           {cargando || !datosVentasPorCategoria ? (
-            <div className="h-64 flex items-center justify-center text-gray-500">
+            <div className="h-64 flex items-center justify-center text-gray-500 bg-gray-50/50 rounded-xl">
               <div className="flex items-center">
                 <RefreshCw className="animate-spin mr-2" size={20} />
                 Cargando datos...
               </div>
             </div>
           ) : (
-            <Chart
-              chartType="PieChart"
-              width="100%"
-              height="300px"
-              data={datosVentasPorCategoria}
-              options={opcionesVentasPorCategoria}
-            />
+             <div className="w-full overflow-hidden">
+              <Chart
+                chartType="PieChart"
+                width="100%"
+                height="300px"
+                data={datosVentasPorCategoria}
+                options={opcionesVentasPorCategoria}
+              />
+            </div>
           )}
         </div>
       </div>

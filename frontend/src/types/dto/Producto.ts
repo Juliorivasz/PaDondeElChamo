@@ -1,10 +1,21 @@
 // Corresponde al objeto 'content' de GET /producto/abm
+export type TipoProducto = 'SIMPLE' | 'ELABORADO' | 'MIXTO';
+
+export interface DetalleReceta {
+  idInsumo: string;
+  nombreInsumo: string;
+  cantidad: number;
+  unidadMedida: string;
+  costoUnitario?: number;
+  subtotal?: number;
+}
+
 export interface ProductoAbm {
-  idProducto: number
+  idProducto: string
   nombre: string
-  codigoDeBarras: string
+  codigoDeBarras?: string
   precio: number
-  porcentaje: number | null // El descuento puede no existir
+  porcentaje: number | null
   precioConDescuento: number | null
   cantidadMinima: number | null 
   nuevoPrecio: number | null 
@@ -16,11 +27,13 @@ export interface ProductoAbm {
   estado: boolean  
   marca: string
   categoria: string
-  proveedor: string
-  idCategoria: number
-  idDescuento: number | null
-  idOferta: number | null
+  proveedor?: string
+  idCategoria: string
+  idDescuento: string | null
+  idOferta: string | null
   imagenUrl?: string | null
+  tipoProducto?: TipoProducto
+  receta?: DetalleReceta[]
 }
 
 // Para la respuesta completa de la API
@@ -38,38 +51,41 @@ export interface ProductoDTO {
   precio: number
   costo: number
   stock: number
-  idMarca: number
-  idCategoria: number
-  idProveedor: number
+  codigoDeBarras?: string
+  idMarca: string
+  idCategoria: string
+  idProveedor?: string
   imagenUrl?: string | File | null
+  tipoProducto: TipoProducto
+  receta?: DetalleReceta[]
 }
 
 // Para las listas de los filtros
 export interface MarcaLista {
-  idMarca: number
+  idMarca: string
   nombre: string
 }
 
 export interface CategoriaLista {
-  idCategoria: number
+  idCategoria: string
   nombre: string
 }
 
 export interface ProveedorLista {
-  idProveedor: number
+  idProveedor: string
   nombre: string
 }
 
 // Para la respuesta de GET /producto/listaCompra/{id}
 export interface ProductoLista {
-  idProducto: number // Necesitaremos el ID para el DTO final
+  idProducto: string
   nombre: string
   costo: number
 }
 
 // Para la respuesta de GET /producto/listaVenta
 export interface ProductoVenta {
-  idProducto: number
+  idProducto: string
   nombre: string
   precio: number
 }

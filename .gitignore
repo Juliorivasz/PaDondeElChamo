@@ -1,1 +1,19 @@
 .vscode/
+node_modules/
+.firebase/
+*.log
+*.json
+!package.json
+!tsconfig.json
+!firebase.json
+!firestore.indexes.json
+!frontend/package.json
+!frontend/tsconfig.json
+!frontend/tsconfig.app.json
+!frontend/tsconfig.node.json
+!functions/package.json
+!functions/tsconfig.json
+
+# Sensitive Keys
+padondeloschamos-*.json
+users.json

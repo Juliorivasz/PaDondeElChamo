@@ -60,12 +60,12 @@ export const ModalDetallesUsuario: React.FC<ModalDetallesUsuarioProps> = ({
           <div className="grid grid-cols-1 gap-4">
             {/* Info ID */}
             <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 flex items-center gap-4">
-              <div className="p-2 bg-white rounded-lg shadow-sm text-gray-400 border border-gray-100">
+              <div className="p-2 bg-white rounded-lg shadow-sm text-gray-400 border border-gray-100 shrink-0">
                 <Fingerprint size={20} />
               </div>
-              <div className="flex flex-col">
+              <div className="flex flex-col min-w-0">
                 <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">ID de Usuario</span>
-                <span className="text-sm font-bold text-gray-900">#{usuario.idUsuario}</span>
+                <span className="text-sm font-bold text-gray-900 break-words">{usuario.idUsuario}</span>
               </div>
             </div>
 
@@ -75,16 +75,16 @@ export const ModalDetallesUsuario: React.FC<ModalDetallesUsuarioProps> = ({
                 ? 'bg-blue-50 border-blue-100' 
                 : 'bg-green-50 border-green-100'
             }`}>
-              <div className={`p-2 bg-white rounded-lg shadow-sm border ${
+              <div className={`p-2 bg-white rounded-lg shadow-sm border shrink-0 ${
                 esAdmin ? 'text-azul border-blue-100' : 'text-verde border-green-100'
               }`}>
                 <Shield size={20} />
               </div>
-              <div className="flex flex-col">
+              <div className="flex flex-col min-w-0">
                 <span className={`text-[10px] font-bold uppercase tracking-wider ${
                   esAdmin ? 'text-azul/60' : 'text-verde/60'
                 }`}>Rol Asignado</span>
-                <span className={`text-sm font-bold ${
+                <span className={`text-sm font-bold break-words ${
                   esAdmin ? 'text-azul' : 'text-verde'
                 }`}>{usuario.rol}</span>
               </div>
@@ -92,12 +92,12 @@ export const ModalDetallesUsuario: React.FC<ModalDetallesUsuarioProps> = ({
 
             {/* Info Canal / Email */}
             <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 flex items-center gap-4">
-              <div className="p-2 bg-white rounded-lg shadow-sm text-gray-400 border border-gray-100">
+              <div className="p-2 bg-white rounded-lg shadow-sm text-gray-400 border border-gray-100 shrink-0">
                 <Mail size={20} />
               </div>
-              <div className="flex flex-col">
+              <div className="flex flex-col min-w-0">
                 <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">Correo Principal</span>
-                <span className="text-sm font-bold text-gray-900">{usuario.email}</span>
+                <span className="text-sm font-bold text-gray-900 break-words">{usuario.email}</span>
               </div>
             </div>
           </div>

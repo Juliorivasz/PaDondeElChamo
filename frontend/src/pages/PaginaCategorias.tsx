@@ -12,6 +12,7 @@ import { ModalDetallesCategoria } from "../components/categorias/ModalDetallesCa
 import { Eye, Pencil, Tag, Plus, BrushCleaning, CornerDownRight } from "lucide-react"
 import { useCategoriaStore } from "../store/categoriaStore"
 import { toast } from "react-toastify"
+import { PanelFiltrosColapsable } from "../components/PanelFiltrosColapsable"
 
 type FiltroEstado = "todas" | "activas" | "inactivas"
 
@@ -20,6 +21,7 @@ const PaginaCategorias: React.FC = () => {
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [configuracion, setConfiguracion] = useState<ConfiguracionDTO | null>(null)
   const [cargando, setCargando] = useState(true)
+  const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { refrescarCategorias } = useCategoriaStore();
 
@@ -34,7 +36,7 @@ const PaginaCategorias: React.FC = () => {
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<Categoria | null>(null)
 
   // Estado de expansión de categorías
-  const [categoriasExpandidas, setCategoriasExpandidas] = useState<Record<number, boolean>>({})
+  const [categoriasExpandidas, setCategoriasExpandidas] = useState<Record<string, boolean>>({})
 
   // Cargar categorías y configuración al montar el componente
   useEffect(() => {
@@ -54,7 +56,7 @@ const PaginaCategorias: React.FC = () => {
   // Transformar a árbol cuando cambian las categorías
   useEffect(() => {
     // Expandir todas las categorías por defecto
-    const expandidas: Record<number, boolean> = {}
+    const expandidas: Record<string, boolean> = {}
     categorias.forEach((cat) => {
       expandidas[cat.idCategoria] = true
     })
@@ -76,6 +78,7 @@ const PaginaCategorias: React.FC = () => {
 
   const handleCrearCategoria = async (data: CrearCategoriaDTO) => {
     try {
+      setGuardando(true)
       await crearCategoria(data)
       toast.success("Categoría creada con éxito")
 
@@ -86,13 +89,16 @@ const PaginaCategorias: React.FC = () => {
       if (error.response && error.response.data) {
         toast.error(error.response.data);
       } else {
-        console.error("No fue posible crear la categoría")
+        toast.error("No fue posible crear la categoría")
       }
+    } finally {
+      setGuardando(false)
     }
   }
 
-  const handleModificarCategoria = async (id: number, data: ModificarCategoriaDTO) => {
+  const handleModificarCategoria = async (id: string, data: ModificarCategoriaDTO) => {
     try {
+      setGuardando(true)
       await modificarCategoria(id, data)
       toast.success("Categoría modificada con éxito")
 
@@ -104,22 +110,30 @@ const PaginaCategorias: React.FC = () => {
       if (error.response && error.response.data) {
         toast.error(error.response.data);
       } else {
-        console.error("No fue posible modificar la categoría")
+        toast.error("No fue posible modificar la categoría")
       }
+    } finally {
+      setGuardando(false)
     }
   }
 
-  const handleCambiarEstado = async (id: number) => {
+  const handleCambiarEstado = async (id: string) => {
     try {
+      setGuardando(true)
       await cambiarEstadoCategoria(id)
       await cargarCategorias()
+      toast.success("Estado actualizado")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al cambiar estado")
+      toast.error("Error al cambiar estado")
+    } finally {
+      setGuardando(false)
     }
   }
 
-  const handleToggleDescuento = async (id: number, nuevoValor: boolean) => {
+  const handleToggleDescuento = async (id: string, nuevoValor: boolean) => {
     try {
+      setGuardando(true)
       await modificarCategoria(id, { aplicaDescuentoAutomatico: nuevoValor })
       await refrescarCategorias()
       await cargarCategorias()
@@ -130,6 +144,8 @@ const PaginaCategorias: React.FC = () => {
       } else {
         toast.error('Error al actualizar descuento')
       }
+    } finally {
+      setGuardando(false)
     }
   }
 
@@ -151,7 +167,13 @@ const PaginaCategorias: React.FC = () => {
 
     return (
       <React.Fragment key={categoria.idCategoria}>
-        <tr className="group hover:bg-azul/5 transition-colors">
+        <tr 
+          onClick={() => {
+            setCategoriaSeleccionada(categoria)
+            setModalDetalles(true)
+          }}
+          className="group hover:bg-gray-50 cursor-pointer transition-colors"
+        >
           <td className="px-6 py-4 text-gray-500 font-mono text-xs">{categoria.idCategoria}</td>
 
           <td className="px-6 py-4" style={{ paddingLeft: `${24 + categoria.nivel * 24}px` }}>
@@ -175,19 +197,19 @@ const PaginaCategorias: React.FC = () => {
           </td>
           <td className="px-6 py-4 text-center">
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-              {categoria.productos.length}
+              {categoria.productos?.length || 0}
             </span>
           </td>
-          <td className="px-6 py-4 text-center">
+          <td className="px-6 py-4 text-center" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={() => handleToggleDescuento(categoria.idCategoria, !categoria.aplicaDescuentoAutomatico)}
               disabled={!configuracion?.descuentoAutomatico}
               className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                 !configuracion?.descuentoAutomatico
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   : categoria.aplicaDescuentoAutomatico
                   ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
               title={
                 !configuracion?.descuentoAutomatico
@@ -200,7 +222,7 @@ const PaginaCategorias: React.FC = () => {
               {categoria.aplicaDescuentoAutomatico ? 'Activo' : 'Inactivo'}
             </button>
           </td>
-          <td className="px-6 py-4">
+          <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-center items-center space-x-2">
               <button
                 onClick={() => {
@@ -266,7 +288,7 @@ const PaginaCategorias: React.FC = () => {
         </div>
         <button
           onClick={() => setModalNueva(true)}
-          className="flex items-center justify-center gap-2 px-6 py-2 bg-azul text-white rounded-md font-semibold hover:bg-azul-dark shadow-md transition-all active:scale-95 text-sm sm:text-base"
+          className="flex items-center justify-center gap-2 px-6 py-2 bg-azul text-white rounded-md font-semibold hover:bg-azul-dark shadow-md transition-all active:scale-95 text-sm sm:text-base w-full sm:w-auto"
         >
           <Plus size={20} />
           <span>Nueva Categoría</span>
@@ -274,7 +296,7 @@ const PaginaCategorias: React.FC = () => {
       </div>
 
       {/* Panel de Filtros */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-5 mb-8">
+      <PanelFiltrosColapsable titulo="Filtros de Búsqueda" defaultOpen={false}>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 items-end">
           <div className="space-y-1.5 md:col-span-2">
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 ml-1">Búsqueda rápida</label>
@@ -308,14 +330,14 @@ const PaginaCategorias: React.FC = () => {
               setFiltroNombre("")
               setFiltroEstado("todas")
             }}
-            className="p-2.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition-colors flex items-center justify-center group w-full lg:w-fit shadow-sm"
+            className="p-2.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition-colors flex items-center justify-center group w-full lg:w-fit shadow-sm h-[45px] mt-auto"
             title="Limpiar filtros"
           >
             <BrushCleaning size={20} className="group-hover:rotate-12 transition-transform mr-2 lg:mr-0" />
             <span className="lg:hidden font-semibold">Limpiar Filtros</span>
           </button>
         </div>
-      </div>
+      </PanelFiltrosColapsable>
 
       {/* Mensaje de Error */}
       {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">{error}</div>}
@@ -388,6 +410,16 @@ const PaginaCategorias: React.FC = () => {
         }}
         categoria={categoriaSeleccionada}
       />
+
+      {/* Loading Overlay */}
+      {guardando && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999]">
+          <div className="bg-white rounded-2xl p-8 shadow-2xl flex flex-col items-center gap-4">
+            <div className="w-16 h-16 border-4 border-blue-100 border-t-azul rounded-full animate-spin"></div>
+            <p className="text-gray-700 font-semibold">Guardando cambios...</p>
+          </div>
+        </div>
+      )}
     </div >
   )
 }

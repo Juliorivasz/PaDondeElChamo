@@ -52,7 +52,7 @@ export const ModalEditarGasto: React.FC<ModalEditarGastoProps> = ({
 
     setIsLoading(true)
     try {
-      await modificarGasto(gasto.idGasto, formData)
+      await modificarGasto(String(gasto.idGasto), formData)
       toast.success("¡Gasto actualizado con éxito!")
       onSuccess()
       onClose()

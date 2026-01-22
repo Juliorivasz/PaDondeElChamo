@@ -6,8 +6,8 @@ import { CornerDownRight } from 'lucide-react';
 // --- Interfaz para las props del componente ---
 interface Props {
   opciones: any[];
-  selectedValue: number | null;
-  onSelect: (id: number | null) => void;
+  selectedValue: string | null;
+  onSelect: (id: string | null) => void;
   placeholder?: string;
   // Propiedades opcionales para mapear campos si no son 'id', 'nombre', 'hijos'
   idKey?: string;
@@ -19,7 +19,7 @@ interface Props {
 const OpcionRecursiva: React.FC<{ 
   opcion: any; 
   nivel: number; 
-  onSelect: (id: number, nombre: string) => void;
+  onSelect: (id: string, nombre: string) => void;
   idKey: string;
   labelKey: string;
   hijosKey: string;
@@ -98,7 +98,7 @@ export const SelectJerarquico: React.FC<Props> = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [ref]);
 
-  const handleSelect = (id: number, nombre: string) => {
+  const handleSelect = (id: string, nombre: string) => {
     onSelect(id);
     setSelectedLabel(nombre);
     setIsOpen(false);

@@ -11,12 +11,13 @@ import {
   ChevronRight,
   BrushCleaning,
   Printer,
+  Loader2,
 } from "lucide-react"
 import DatePicker from "react-datepicker"
 import "react-datepicker/dist/react-datepicker.css"
 import type { PaginaDeCompras, Compra } from "../types/dto/Compra"
 import { descargarComprobanteCompra, obtenerCompras, toggleEstadoPagoCompra } from "../api/compraApi"
-import { obtenerListaProveedores } from "../api/proveedorApi"
+import { obtenerProveedores } from "../api/proveedorApi"
 import { formatearFecha, formatearHora } from "../utils/fechaUtils"
 import { ModalGestionarCompra } from "../components/compras/ModalGestionarCompra"
 import { ModalDetallesCompra } from "../components/compras/ModalDetallesCompra"
@@ -24,20 +25,23 @@ import { formatCurrency } from "../utils/numberFormatUtils"
 import type { Usuario } from "../types/dto/Usuario"
 import { obtenerUsuarios } from "../api/usuarioApi"
 import { toast } from "react-toastify"
+import { PanelFiltrosColapsable } from "../components/PanelFiltrosColapsable"
 
 const PaginaCompras: React.FC = () => {
   // Estados principales
   const [paginaDeCompras, setPaginaDeCompras] = useState<PaginaDeCompras | null>(null)
-  const [proveedores, setProveedores] = useState<{ idProveedor: number; nombre: string }[]>([])
+  const [proveedores, setProveedores] = useState<{ idProveedor: string; nombre: string }[]>([])
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // Estado para controlar qué acción se está procesando
+  const [procesandoId, setProcesandoId] = useState<string | null>(null)
 
   // Estados de filtros
   const [filtros, setFiltros] = useState({
     pagina: 0,
     tamaño: 10,
-    idProveedor: null as number | null,
+    idProveedor: null as string | null,
     fechaInicio: null as Date | null,
     fechaFin: null as Date | null,
     idUsuario: null as number | null,
@@ -62,7 +66,7 @@ const PaginaCompras: React.FC = () => {
 
   const cargarProveedores = async () => {
     try {
-      const data = await obtenerListaProveedores()
+      const data = await obtenerProveedores()
       setProveedores(data)
     } catch (error) {
       console.error("Error al cargar proveedores")
@@ -97,7 +101,9 @@ const PaginaCompras: React.FC = () => {
     }
   }
 
-  const handleDescargar = async (idCompra: number) => {
+  const handleDescargar = async (idCompra: string) => {
+    if (procesandoId) return;
+    setProcesandoId(`descargar-${idCompra}`);
     const toastId = toast.loading("Generando comprobante...")
     try {
       await descargarComprobanteCompra(idCompra)
@@ -114,6 +120,8 @@ const PaginaCompras: React.FC = () => {
         isLoading: false,
         autoClose: 3000,
       })
+    } finally {
+      setProcesandoId(null);
     }
   }
 
@@ -177,7 +185,9 @@ const PaginaCompras: React.FC = () => {
     setCompraParaEditar(null)
   }
 
-  const handleToggleEstado = async (idCompra: number): Promise<void> => {
+  const handleToggleEstado = async (idCompra: string): Promise<void> => {
+    if (procesandoId) return;
+    setProcesandoId(`estado-${idCompra}`);
     try {
       await toggleEstadoPagoCompra(idCompra)
       toast.info("Se modificó el estado de la compra")
@@ -185,6 +195,8 @@ const PaginaCompras: React.FC = () => {
       await cargarCompras()
     } catch (error) {
       toast.error("Error al cambiar el estado de la compra")
+    } finally {
+      setProcesandoId(null);
     }
   }
 
@@ -209,7 +221,7 @@ const PaginaCompras: React.FC = () => {
       </div>
 
       {/* Panel de Filtros */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-5 mb-8">
+      <PanelFiltrosColapsable titulo="Filtros de Búsqueda" defaultOpen={false}>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5 items-end">
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 ml-1">Fecha de Inicio</label>
@@ -273,14 +285,14 @@ const PaginaCompras: React.FC = () => {
 
           <button
             onClick={limpiarFiltros}
-            className="p-2.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition-colors flex items-center justify-center group w-full lg:w-fit shadow-sm"
+            className="p-2.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition-colors flex items-center justify-center group w-full lg:w-fit shadow-sm h-[45px] mt-auto"
             title="Limpiar filtros"
           >
             <BrushCleaning size={20} className="group-hover:rotate-12 transition-transform mr-2 lg:mr-0" />
             <span className="lg:hidden font-semibold">Limpiar</span>
           </button>
         </div>
-      </div>
+      </PanelFiltrosColapsable>
 
       {/* Tabla de Compras */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -308,7 +320,11 @@ const PaginaCompras: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {paginaDeCompras?.content.map((compra) => (
-                    <tr key={compra.idCompra} className="hover:bg-azul/5 transition-colors group">
+                    <tr 
+                      key={compra.idCompra} 
+                      onClick={() => abrirModalDetalles(compra)}
+                      className="hover:bg-gray-50 cursor-pointer transition-colors"
+                    >
                       <td className="px-6 py-4 text-gray-500 font-mono text-xs">{compra.idCompra}</td>
                       <td className="px-6 py-4 font-medium text-gray-900">
                         {typeof compra.proveedor === "object" ? (compra.proveedor as any).nombre : compra.proveedor}
@@ -323,22 +339,27 @@ const PaginaCompras: React.FC = () => {
                         <div className="text-gray-900 font-medium">{formatearFecha(compra.fechaHora)}</div>
                         <div className="text-gray-400 text-xs">{formatearHora(compra.fechaHora)}</div>
                       </td>
-                      <td className="px-6 py-4 text-center">
+                      <td className="px-6 py-4 text-center" onClick={(e) => e.stopPropagation()}>
                         <button
-                          onClick={() => handleToggleEstado(compra.idCompra)}
+                          onClick={() => handleToggleEstado(String(compra.idCompra))}
+                          disabled={!!procesandoId}
                           className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold transition-all ${compra.estadoCompra === "PAGADO"
                             ? "bg-green-100 text-green-700 border border-green-200 hover:bg-green-200"
                             : "bg-yellow-100 text-yellow-700 border border-yellow-200 hover:bg-yellow-200"
-                            }`}
+                            } disabled:opacity-50 disabled:cursor-not-allowed`}
                         >
+                          {procesandoId === `estado-${compra.idCompra}` ? (
+                            <Loader2 size={12} className="animate-spin mr-1" />
+                          ) : null}
                           {compra.estadoCompra}
                         </button>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                         <div className="flex justify-center items-center space-x-2">
                           <button
                             onClick={() => abrirModalEditar(compra)}
-                            className="p-1.5 text-gray-800 hover:text-black transition-colors rounded-lg"
+                            disabled={!!procesandoId}
+                            className="p-1.5 text-gray-800 hover:text-black transition-colors rounded-lg disabled:opacity-30 disabled:cursor-not-allowed"
                             title="Editar compra"
                           >
                             <Pencil size={18} />
@@ -346,18 +367,24 @@ const PaginaCompras: React.FC = () => {
 
                           <button
                             onClick={() => abrirModalDetalles(compra)}
-                            className="p-1.5 text-gray-800 hover:text-black transition-colors rounded-lg"
+                            disabled={!!procesandoId}
+                            className="p-1.5 text-gray-800 hover:text-black transition-colors rounded-lg disabled:opacity-30 disabled:cursor-not-allowed"
                             title="Ver detalles"
                           >
                             <Eye size={18} />
                           </button>
 
                           <button
-                            onClick={() => handleDescargar(compra.idCompra)}
-                            className="p-1.5 text-gray-800 hover:text-black transition-colors rounded-lg"
+                            onClick={() => handleDescargar(String(compra.idCompra))}
+                            disabled={!!procesandoId}
+                            className="p-1.5 text-gray-800 hover:text-black transition-colors rounded-lg disabled:opacity-30 disabled:cursor-not-allowed"
                             title="Descargar Comprobante"
                           >
-                            <Printer size={18} />
+                            {procesandoId === `descargar-${compra.idCompra}` ? (
+                              <Loader2 size={18} className="animate-spin text-azul" />
+                            ) : (
+                              <Printer size={18} />
+                            )}
                           </button>
                         </div>
                       </td>

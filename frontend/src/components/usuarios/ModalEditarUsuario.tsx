@@ -137,8 +137,9 @@ export const ModalEditarUsuario: React.FC<ModalEditarUsuarioProps> = ({
                 value={formData.email}
                 onChange={handleChange}
                 required
-                className="w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-azul/20 focus:border-azul transition-all font-medium"
+                className="w-full pl-11 pr-4 py-2.5 bg-gray-100 border border-gray-200 rounded-lg text-gray-500 cursor-not-allowed font-medium"
                 placeholder="usuario@ejemplo.com"
+                disabled
               />
             </div>
           </div>

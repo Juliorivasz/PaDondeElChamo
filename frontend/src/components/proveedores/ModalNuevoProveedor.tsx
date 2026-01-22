@@ -14,8 +14,8 @@ interface ModalNuevoProveedorProps {
 
 const estadoInicial = {
   nombre: "",
-  telefono: null,
-  email: null,
+  telefono: undefined,
+  email: undefined,
 }
 
 export const ModalNuevoProveedor: React.FC<ModalNuevoProveedorProps> = ({ isOpen, onClose, onConfirm }) => {
@@ -25,7 +25,7 @@ export const ModalNuevoProveedor: React.FC<ModalNuevoProveedorProps> = ({ isOpen
     const { name, value } = e.target
     setFormData((prev) => ({
       ...prev,
-      [name]: value === "" ? null : value,
+      [name]: value === "" ? undefined : value,
     }))
   }
 

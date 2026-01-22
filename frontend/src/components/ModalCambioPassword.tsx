@@ -5,7 +5,7 @@ import { useState } from "react"
 import { createPortal } from "react-dom"
 import { X, Lock, Save, Eye, EyeOff, ShieldAlert } from "lucide-react"
 import { toast } from "react-toastify"
-import { actualizarUsuario } from "../api/usuarioApi"
+// import { actualizarUsuario } from "../api/usuarioApi" Removed to fix lint
 import { useAutenticacionStore } from "../store/autenticacionStore"
 import { useUsuarioStore } from "../store/usuarioStore"
 import { useEscapeKey } from "../hooks/useEscapeKey"
@@ -14,10 +14,11 @@ interface ModalCambioPasswordProps {
   isOpen: boolean
   onClose: () => void
   isForced?: boolean // Si es forzado por contraseña débil
-  userId?: number // ID del usuario al que se le cambiará la contraseña (opcional, por defecto el usuario logueado)
+  userId?: string // ID del usuario al que se le cambiará la contraseña (opcional, por defecto el usuario logueado)
 }
 
 const ModalCambioPassword: React.FC<ModalCambioPasswordProps> = ({ isOpen, onClose, isForced = false, userId }) => {
+  const [currentPassword, setCurrentPassword] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [mostrarPassword, setMostrarPassword] = useState(false)
@@ -27,6 +28,7 @@ const ModalCambioPassword: React.FC<ModalCambioPasswordProps> = ({ isOpen, onClo
   const limpiarAdvertencia = useAutenticacionStore((state) => state.limpiarAdvertenciaPassword)
 
   const resetForm = () => {
+    setCurrentPassword("")
     setPassword("")
     setConfirmPassword("")
     setMostrarPassword(false)
@@ -74,14 +76,28 @@ const ModalCambioPassword: React.FC<ModalCambioPasswordProps> = ({ isOpen, onClo
 
     try {
       setLoading(true)
-      await actualizarUsuario(targetUserId, { password })
+      
+      // Verificar si es el mismo usuario logueado
+      if (targetUserId === usuarioLogueado?.idUsuario) {
+        // Usar la función de Firebase Auth
+        const { cambiarPassword, reautenticarUsuario } = await import("../api/usuarioApi")
+        await reautenticarUsuario(currentPassword)
+        await cambiarPassword(password)
+      } else {
+        // TODO: Implementar Cloud Function para cambiar contraseña de OTRO usuario
+        // Por ahora, lanzamos error para no dar falso positivo
+        // await actualizarUsuario(targetUserId, { password }) // ESTO NO FUNCIONA (borra el campo)
+        
+        throw new Error("Solo puedes cambiar tu propia contraseña por ahora. La gestión de contraseñas de otros usuarios requiere backend.")
+      }
+
       toast.success("¡Contraseña actualizada correctamente!")
       limpiarAdvertencia()
       resetForm()
       onClose()
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al cambiar contraseña:", error)
-      toast.error("Error al actualizar la contraseña")
+      toast.error(error.message || "Error al actualizar la contraseña")
     } finally {
       setLoading(false)
     }
@@ -128,6 +144,24 @@ const ModalCambioPassword: React.FC<ModalCambioPasswordProps> = ({ isOpen, onClo
           <div className="space-y-1.5 text-center pb-2">
             <h3 className="text-lg font-bold text-gray-900">Cambiar Contraseña</h3>
             <p className="text-xs text-gray-400 font-medium">Establece una nueva clave de acceso segura</p>
+          </div>
+
+          {/* Current Password */}
+          <div className="space-y-1.5">
+            <label className="block text-sm font-semibold text-gray-700 ml-1">Contraseña Actual</label>
+            <div className="relative group">
+              <div className="absolute left-4 top-[11px] text-gray-400 group-focus-within:text-azul transition-colors">
+                <Lock size={18} />
+              </div>
+              <input
+                type={mostrarPassword ? "text" : "password"}
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="w-full pl-11 pr-11 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-azul/20 focus:border-azul transition-all font-medium"
+                placeholder="••••••••"
+                required
+              />
+            </div>
           </div>
 
           {/* Nueva Password */}

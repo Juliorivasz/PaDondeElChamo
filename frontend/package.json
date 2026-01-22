@@ -1,5 +1,5 @@
 {
-  "name": "padondeloschamos",
+  "name": "padondeelchamo",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -12,6 +12,7 @@
   "dependencies": {
     "@types/react-datepicker": "^6.2.0",
     "axios": "^1.11.0",
+    "firebase": "^12.8.0",
     "framer-motion": "^12.23.26",
     "lucide-react": "^0.542.0",
     "react": "^19.1.1",

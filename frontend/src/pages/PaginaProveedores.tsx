@@ -9,10 +9,12 @@ import { ModalDetallesProveedor } from "../components/proveedores/ModalDetallesP
 import { toast } from "react-toastify"
 import { ModalNuevoProveedor } from "../components/proveedores/ModalNuevoProveedor"
 import { ModalEditarProveedor } from "../components/proveedores/ModalEditarProveedor"
+import { PanelFiltrosColapsable } from "../components/PanelFiltrosColapsable"
 
 const PaginaProveedores: React.FC = () => {
   const [proveedores, setProveedores] = useState<Proveedor[]>([])
   const [loading, setLoading] = useState<boolean>(true)
+  const [guardando, setGuardando] = useState<boolean>(false)
   const [error, setError] = useState<string>("")
   const [busqueda, setBusqueda] = useState<string>("")
   const [filtroEstado, setFiltroEstado] = useState<"todos" | "activos" | "inactivos">("todos")
@@ -54,33 +56,44 @@ const PaginaProveedores: React.FC = () => {
 
   const handleCrearProveedor = async (data: ProveedorDTO) => {
     try {
+      setGuardando(true)
       await crearProveedor(data)
       toast.success("Proveedor cargado con éxito")
       setModalNuevoAbierto(false)
       await cargarProveedores()
     } catch (err) {
-      console.error("No fue posible cargar el nuevo proveedor")
+      toast.error("No fue posible cargar el nuevo proveedor")
+    } finally {
+      setGuardando(false)
     }
   }
 
-  const handleEditarProveedor = async (id: number, data: ProveedorDTO) => {
+  const handleEditarProveedor = async (id: string, data: ProveedorDTO) => {
     try {
+      setGuardando(true)
       await modificarProveedor(id, data)
       toast.success("Proveedor modificado con éxito")
       setModalEditarAbierto(false)
       setProveedorSeleccionado(null)
       await cargarProveedores()
     } catch (err) {
-      console.error("No fue posible modificar el proveedor")
+      toast.error("No fue posible modificar el proveedor")
+    } finally {
+      setGuardando(false)
     }
   }
 
-  const handleCambiarEstado = async (id: number) => {
+  const handleCambiarEstado = async (id: string) => {
     try {
+      setGuardando(true)
       await cambiarEstadoProveedor(id)
       await cargarProveedores()
+      toast.success("Estado actualizado")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al cambiar estado")
+      toast.error("Error al cambiar estado")
+    } finally {
+      setGuardando(false)
     }
   }
 
@@ -123,7 +136,7 @@ const PaginaProveedores: React.FC = () => {
       </div>
 
       {/* Panel de Filtros */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-5 mb-8">
+      <PanelFiltrosColapsable titulo="Filtros de Búsqueda" defaultOpen={false}>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 items-end">
           <div className="space-y-1.5 md:col-span-2">
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 ml-1">Búsqueda rápida</label>
@@ -157,14 +170,14 @@ const PaginaProveedores: React.FC = () => {
               setBusqueda("")
               setFiltroEstado("todos")
             }}
-            className="p-2.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition-colors flex items-center justify-center group w-full lg:w-fit shadow-sm"
+            className="p-2.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition-colors flex items-center justify-center group w-full lg:w-fit shadow-sm h-[45px] mt-auto"
             title="Limpiar filtros"
           >
             <BrushCleaning size={20} className="group-hover:rotate-12 transition-transform mr-2 lg:mr-0" />
             <span className="lg:hidden font-semibold">Limpiar Filtros</span>
           </button>
         </div>
-      </div>
+      </PanelFiltrosColapsable>
 
       {/* Mensaje de error */}
       {error && (
@@ -199,7 +212,11 @@ const PaginaProveedores: React.FC = () => {
                 </tr>
               ) : (
                 proveedoresFiltrados.map((proveedor) => (
-                  <tr key={proveedor.idProveedor} className="hover:bg-gray-50/50 transition-colors group">
+                  <tr 
+                    key={proveedor.idProveedor} 
+                    onClick={() => abrirModalDetalles(proveedor)}
+                    className="hover:bg-gray-50 cursor-pointer transition-colors"
+                  >
                     <td className="px-6 py-4 text-gray-400 font-mono text-xs">#{proveedor.idProveedor}</td>
                     <td className="px-6 py-4">
                       <div className="font-bold text-gray-900 leading-tight">{proveedor.nombre}</div>
@@ -213,7 +230,7 @@ const PaginaProveedores: React.FC = () => {
                       </div>
                     </td>
 
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-end items-center gap-2">
                         <button
                           onClick={() => abrirModalDetalles(proveedor)}
@@ -277,6 +294,16 @@ const PaginaProveedores: React.FC = () => {
           }}
           proveedor={proveedorSeleccionado as Proveedor}
         />
+      )}
+
+      {/* Loading Overlay */}
+      {guardando && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999]">
+          <div className="bg-white rounded-2xl p-8 shadow-2xl flex flex-col items-center gap-4">
+            <div className="w-16 h-16 border-4 border-blue-100 border-t-azul rounded-full animate-spin"></div>
+            <p className="text-gray-700 font-semibold">Guardando cambios...</p>
+          </div>
+        </div>
       )}
     </div>
   )

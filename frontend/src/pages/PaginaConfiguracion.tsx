@@ -208,55 +208,8 @@ const PaginaConfiguracion = () => {
           </div>
         </div>
 
-        <div className="mt-12 pt-8 border-t border-gray-300">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-0 mb-6">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-800">Auditoría</h2>
-              <p className="text-sm text-gray-500 mt-1">Configuración de las revisiones de stock.</p>
-            </div>
-
-            {/* Toggle Revision Activa */}
-            <div className="flex items-center gap-3">
-              <span className={`text-sm font-medium ${config.revisionActiva ? "text-green-600" : "text-red-500"}`}>
-                {config.revisionActiva ? "ACTIVO" : "INACTIVO"}
-              </span>
-
-              <button
-                onClick={() => setConfig({ ...config, revisionActiva: !config.revisionActiva })}
-                disabled={!modoEdicion}
-                type="button"
-                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${config.revisionActiva
-                  ? "bg-toggleOn focus:ring-toggleOn"
-                  : "bg-toggleOff focus:ring-toggleOff"
-                  } ${!modoEdicion ? "opacity-70 cursor-not-allowed" : "cursor-pointer"}`}
-              >
-                <span
-                  className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${config.revisionActiva ? "translate-x-7" : "translate-x-1"
-                    }`}
-                />
-              </button>
-            </div>
-          </div>
-
-          <div className="relative mt-8 mb-5">
-            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-              Cantidad de Productos Revisión
-            </label>
-            <input
-              type="number"
-              value={config.cantProductosRevision || 3}
-              onChange={(e) => setConfig({ ...config, cantProductosRevision: parseInt(e.target.value) || 0 })}
-              disabled={!modoEdicion}
-              min={1}
-              className="w-[100px] px-4 py-3 text-xl font-semibold text-gray-800 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all disabled:text-gray-500 disabled:bg-white"
-            />
-            <p className="text-xs text-gray-400 mt-2">Número de productos aleatorios a contar en cada control.</p>
-          </div>
-
-        </div>
-
         {/* Botones de Acción */}
-        <div className="flex flex-wrap justify-end gap-4">
+        <div className="flex flex-wrap justify-end gap-4 mt-8">
           {!modoEdicion ? (
             <button
               onClick={handleEditar}

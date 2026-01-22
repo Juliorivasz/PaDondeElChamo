@@ -7,7 +7,6 @@ import PaginaCompras from "../pages/PaginaCompras";
 import PaginaEstadisticas from "../pages/PaginaEstadisticas";
 import { RoleBasedRoute } from "../components/RoleBasedRoute";
 import PaginaConfiguracion from "../pages/PaginaConfiguracion";
-import PaginaAuditorias from "../pages/PaginaAuditorias";
 import PaginaCaja from "../pages/PaginaCaja";
 
 /**
@@ -80,14 +79,6 @@ export const roleBasedRoutes: RouteObject[] = [
     element: (
       <RoleBasedRoute allowedRoles={['ADMIN']}>
         <PaginaConfiguracion />
-      </RoleBasedRoute>
-    ),
-  },
-  {
-    path: "auditorias",
-    element: (
-      <RoleBasedRoute allowedRoles={['ADMIN']}>
-        <PaginaAuditorias />
       </RoleBasedRoute>
     ),
   },

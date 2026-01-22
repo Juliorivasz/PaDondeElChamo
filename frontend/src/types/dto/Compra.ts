@@ -1,6 +1,7 @@
 export interface DetalleCompra {
-  idProducto: number
+  idProducto: string
   producto: string
+  tipo: 'PRODUCTO' | 'INSUMO'
   cantidad: number
   costoUnitario: number
 }
@@ -25,9 +26,12 @@ export interface PaginaDeCompras {
 }
 
 export interface CompraDTO {
-  idProveedor: number
+  idProveedor: string
+  nombreUsuario?: string
   detalles: {
-    idProducto: number
+    tipo: 'PRODUCTO' | 'INSUMO'
+    idItem: string
+    nombre: string // Desnormalizado
     cantidad: number
     costoUnitario: number
   }[]

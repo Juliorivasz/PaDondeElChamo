@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
-import { User, ArrowLeft, KeyRound, Eye, EyeOff, X } from "lucide-react"
+import { User, ArrowLeft, Eye, EyeOff, X } from "lucide-react"
 import { obtenerUsuariosActivos } from "../api/usuarioApi"
 import { iniciarSesion, solicitarRecuperacion } from "../api/autenticacionApi"
 import { useUsuarioStore } from "../store/usuarioStore"
@@ -31,10 +31,10 @@ const PaginaInicioSesion: React.FC = () => {
   const [enviandoRecuperacion, setEnviandoRecuperacion] = useState(false)
   
   // Estado para controlar la animación FLIP
-  const [animatingId, setAnimatingId] = useState<number | null>(null)
+  const [animatingId, setAnimatingId] = useState<string | null>(null)
   const [cardStyle, setCardStyle] = useState<React.CSSProperties>({})
   const [isExpanded, setIsExpanded] = useState(false)
-  const cardsRefs = useRef<{ [key: number]: HTMLDivElement | null }>({})
+  const cardsRefs = useRef<{ [key: string]: HTMLDivElement | null }>({})
   const passwordInputRef = useRef<HTMLInputElement>(null)
 
   const navigate = useNavigate()
@@ -93,7 +93,8 @@ const PaginaInicioSesion: React.FC = () => {
         top: '50%',
         left: '50%',
         transform: 'translate(-50%, -50%)',
-        width: '28rem',
+        width: 'calc(100% - 2rem)',
+        maxWidth: '28rem',
         zIndex: 50,
         transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
       })
@@ -264,13 +265,13 @@ const PaginaInicioSesion: React.FC = () => {
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
       <div className="max-w-4xl w-full">
         {/* Header Section */}
-        <div className={`text-center mb-8 transition-all duration-500 ${isExpanded ? 'opacity-0 -translate-y-4' : 'opacity-100 translate-y-0'}`}>
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">Bienvenido/a</h1>
-          <p className="text-lg text-gray-600">Por favor, selecciona tu perfil para continuar</p>
+        <div className={`text-center mb-6 md:mb-8 transition-all duration-500 ${isExpanded ? 'opacity-0 -translate-y-4' : 'opacity-100 translate-y-0'}`}>
+          <h1 className="text-2xl md:text-4xl font-bold text-gray-800 mb-2">Bienvenido/a</h1>
+          <p className="text-base md:text-lg text-gray-600">Por favor, selecciona tu perfil para continuar</p>
         </div>
 
         {/* User Profiles Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 relative">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 relative">
           {usuarios.map((usuario) => {
             const isSelected = usuarioSeleccionado?.idUsuario === usuario.idUsuario
             const isAnimatingThis = animatingId === usuario.idUsuario
@@ -320,8 +321,8 @@ const PaginaInicioSesion: React.FC = () => {
                       onClick={() => !isExpanded && handleSelectUsuario(usuario)}
                       className={`transition-all duration-500 h-full flex flex-col ${
                         isExpanded && isAnimatingThis
-                          ? 'p-6 cursor-default' 
-                          : 'p-6 cursor-pointer justify-center'
+                          ? 'p-4 md:p-6 cursor-default' 
+                          : 'p-4 md:p-6 cursor-pointer justify-center'
                       }`}
                     >
                       {/* Avatar y Nombre */}
@@ -419,14 +420,14 @@ const PaginaInicioSesion: React.FC = () => {
                             {iniciandoSesion ? "Iniciando sesión..." : "Iniciar Sesión"}
                           </button>
 
-                          <button
+                          {/* <button
                             type="button"
                             onClick={() => setMostrarModalRecuperacion(true)}
                             className="w-full flex items-center justify-center gap-2 px-4 py-2 text-rose-600 hover:text-rose-700 transition-colors text-sm font-medium"
                           >
                             <KeyRound size={16} />
                             <span>¿Olvidaste tu contraseña?</span>
-                          </button>
+                          </button> */}
                         </div>
                       </form>
                     </div>

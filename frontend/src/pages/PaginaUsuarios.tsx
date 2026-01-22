@@ -12,11 +12,14 @@ import ModalCambioPassword from "../components/ModalCambioPassword"
 import { ModalNuevoUsuario } from "../components/usuarios/ModalNuevoUsuario"
 import { ModalEditarUsuario } from "../components/usuarios/ModalEditarUsuario"
 import { ModalDetallesUsuario } from "../components/usuarios/ModalDetallesUsuario"
+import { useUsuarioStore } from "../store/usuarioStore"
 
 const PaginaUsuarios: React.FC = () => {
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [rolesDisponibles, setRolesDisponibles] = useState<string[]>([])
   const [cargando, setCargando] = useState(true)
+
+  const usuarioLogueado = useUsuarioStore((state) => state.usuario)
 
   // Estados para Modales
   const [mostrarModalNuevo, setMostrarModalNuevo] = useState(false)
@@ -26,7 +29,7 @@ const PaginaUsuarios: React.FC = () => {
   const [mostrarModalPassword, setMostrarModalPassword] = useState(false)
 
   const [usuarioSeleccionado, setUsuarioSeleccionado] = useState<Usuario | null>(null)
-  const [usuarioPasswordId, setUsuarioPasswordId] = useState<number | undefined>(undefined)
+  const [usuarioPasswordId, setUsuarioPasswordId] = useState<string | undefined>(undefined)
 
   useEffect(() => {
     cargarRoles()
@@ -36,9 +39,7 @@ const PaginaUsuarios: React.FC = () => {
   const cargarRoles = async () => {
     try {
       const roles = await obtenerRoles()
-      // Filtrar el rol ADMIN para que no se pueda seleccionar al crear/editar personal común
-      const rolesPermitidos = roles.filter((rol) => rol !== "ADMIN")
-      setRolesDisponibles(rolesPermitidos)
+      setRolesDisponibles(roles)
     } catch (error) {
       toast.error("Error al cargar roles")
     }
@@ -48,8 +49,8 @@ const PaginaUsuarios: React.FC = () => {
     try {
       setCargando(true)
       const response = await obtenerUsuarios({ limit: 1000, mostrarTodos: true })
-      if (response && response.data && Array.isArray(response.data)) {
-        setUsuarios(response.data)
+      if (response && response.usuarios && Array.isArray(response.usuarios)) {
+        setUsuarios(response.usuarios)
       } else {
         setUsuarios([])
       }
@@ -113,7 +114,14 @@ const PaginaUsuarios: React.FC = () => {
           </thead>
           <tbody className="divide-y divide-gray-100 bg-white">
             {listaUsuarios.map((usuario) => (
-              <tr key={usuario.idUsuario} className="group hover:bg-gray-50 transition-colors">
+              <tr 
+                key={usuario.idUsuario} 
+                onClick={() => {
+                  setUsuarioSeleccionado(usuario)
+                  setMostrarModalDetalles(true)
+                }}
+                className="group hover:bg-gray-50 transition-colors cursor-pointer"
+              >
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
                     <div
@@ -139,7 +147,7 @@ const PaginaUsuarios: React.FC = () => {
                     {usuario.rol}
                   </span>
                 </td>
-                <td className="px-6 py-4 text-right">
+                <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-end">
                     {!esInactivo ? (
                       <>
@@ -163,16 +171,18 @@ const PaginaUsuarios: React.FC = () => {
                         >
                           <Pencil size={18} />
                         </button>
-                        <button
-                          onClick={() => {
-                            setUsuarioPasswordId(usuario.idUsuario)
-                            setMostrarModalPassword(true)
-                          }}
-                          className="p-2 text-gray-800 hover:text-black transition-colors rounded-lg"
-                          title="Cambiar Password"
-                        >
-                          <Key size={18} />
-                        </button>
+                        {(usuario.rol !== "ADMIN" || usuario.idUsuario === usuarioLogueado?.idUsuario) && (
+                          <button
+                            onClick={() => {
+                              setUsuarioPasswordId(usuario.idUsuario)
+                              setMostrarModalPassword(true)
+                            }}
+                            className="p-2 text-gray-800 hover:text-black transition-colors rounded-lg"
+                            title="Cambiar Password"
+                          >
+                            <Key size={18} />
+                          </button>
+                        )}
                         {usuario.rol !== "ADMIN" && (
                           <button
                             onClick={() => {
@@ -219,11 +229,14 @@ const PaginaUsuarios: React.FC = () => {
             </div>
           </div>
           <button
-            onClick={() => setMostrarModalNuevo(true)}
-            className="flex items-center justify-center gap-2 px-6 py-2 bg-azul text-white rounded-md font-semibold hover:bg-azul-dark shadow-md transition-all active:scale-95 text-sm sm:text-base"
+            onClick={() => toast.info("🚧 Función en construcción. Crea usuarios manualmente en Firebase Console por ahora.")}
+            disabled
+            className="flex items-center justify-center gap-2 px-6 py-2 bg-gray-300 text-gray-500 rounded-md font-semibold shadow-md cursor-not-allowed text-sm sm:text-base opacity-60"
+            title="Función en construcción - Requiere actualizar a plan Blaze de Firebase"
           >
             <Plus size={20} />
             <span>Nuevo Usuario</span>
+            <span className="text-xs">🚧</span>
           </button>
         </div>
       </div>
